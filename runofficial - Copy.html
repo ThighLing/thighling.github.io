@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <title>Simulation Spreadsheet</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { margin-bottom: 10px; padding: 6px 12px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; user-select: none; }
+    th { background: #f4f4f4; cursor: move; }
+    th.dragging { background: lightgray; }
+    th.insert-target { border-left: 4px solid green; }
+    td.editable { background: #fff; }
+    td.custom { font-style: italic; }
+    pre#debug { margin-top: 20px; max-height: 200px; overflow: auto; background: #f0f0f0; padding: 10px; }
+  </style>
+</head>
+<body>
+  <button id="exportBtn">Export CSV</button>
+  <table id="simTable">
+    <thead><tr></tr></thead>
+    <tbody id="simBody"></tbody>
+  </table>
+  <pre id="debug"></pre>
+  <script>
+    const simBody   = document.getElementById('simBody');
+    const headerRow = document.querySelector('#simTable thead tr');
+    const exportBtn = document.getElementById('exportBtn');
+    let lastSim     = { results: [], logs: [] };
+
+    // ─── 1) Define your columns here ─────────────────────────────
+    const columns = [
+      { key: 'tick',       label: 'Tick',       editable: true },
+      { key: 'expansions', label: 'Expansions', editable: true },
+      { key: 'land',       label: 'Land' },
+	  
+      { key: 'troops',     label: 'Troops' },
+	  { key: 'totaltroops',  label: 'Totaltroops',  isCustom: true, editable: false, formula: 'attacking + troops' },
+      { key: 'attacking',  label: 'Attacking' },
+      { key: 'interest',   label: 'Interest' },
+      // first custom
+      { key: 'custom',  label: 'Custom',  isCustom: true, editable: true, formula: 'fix(land+(troops+attacking)/2,0)' },
+      // second custom
+      { key: 'custom2', label: 'Custom2', isCustom: true, editable: true, formula: '' }
+	  
+    ];
+
+    // ─── 2) Build the <thead> from that array ─────────────────────
+     headerRow.innerHTML = '';
+  columns.forEach(col => {
+    const th = document.createElement('th');
+    th.textContent = col.label;
+    th.dataset.col = col.key;
+    if (col.isCustom) {
+  th.dataset.formula = col.formula;
+  th.dataset.label   = col.label;
+  // only allow header inline‐edit if col.editable===true
+  if (col.editable) {
+    th.dataset.customEditable = 'true';
+    th.contentEditable = false; // we'll toggle this on dblclick below
+  }
+}
+
+    headerRow.appendChild(th);
+  });
+
+    // ─── 3) Build 100 rows via the same array ────────────────────
+    for (let i = 0; i < 100; i++) {
+      const tr = document.createElement('tr');
+      columns.forEach(col => {
+        const td = document.createElement('td');
+        td.dataset.col = col.key;
+        // only non-custom editable columns get contentEditable cells
+if (!col.isCustom && col.editable) {
+  td.classList.add('editable');
+  td.contentEditable = true;
+}
+
+// custom columns never get editable cells,
+ // but still carry their formula
+if (col.isCustom) {
+  td.classList.add('custom');
+  td.dataset.formula = col.formula;
+}
+
+        // prefill first two
+        if (col.key === 'tick')       td.textContent = i===0?'70':i===1?'90':'';
+        else if (col.key === 'expansions')
+                                      td.textContent = i===0?'4':i===1?'2':'';
+        tr.appendChild(td);
+      });
+      simBody.appendChild(tr);
+    }
+
+    // ─── Helpers & rounding ──────────────────────────────────────
+    function landexp(i){ return i*4; }
+    function landclaim(l,e){ return (l+((e+1)/2)*4)*e; }
+    function computeInterestRate(t,land,troops){
+      const base=(13440 - t*6)*100/1920;
+      const mod=Math.max(Math.min(1 - ((land/troops-100)*2)/100,1),0);
+      return Math.floor(base*mod);
+    }
+    function floor(x){return Math.floor(x);}
+    function fix(x,n){return Number(x.toFixed(n));}
+
+    // ─── Simulation logic (unchanged) ────────────────────────────
+    function runSimulation() {
+      const rows = Array.from(simBody.rows);
+      const ticks = rows.map(r => {
+        const c = r.querySelector('td[data-col="tick"]');
+        return parseInt(c.textContent) || null;
+      });
+      const exps = rows.map(r => {
+        const c = r.querySelector('td[data-col="expansions"]');
+        return parseInt(c.textContent) || 0;
+      });
+      const events = ticks.map((t, i) => ({ t, e: exps[i], i }))
+                         .filter(ev => ev.t && ev.e)
+                         .sort((a, b) => a.t - b.t);
+      const maxTick = Math.max(...ticks.filter(t => t));
+
+      let lookup = 0, timer = 0, totalExp = 0, addExp = 0;
+      let atk = 0, troops = 512, land = 12, level = 2;
+      const results = ticks.map(() => ({ land:null, troops:null, attacking:null, interest:null }));
+      const logs = [];
+
+      function expansionspeed(){
+        if(land<1000)        return 4;
+        else if(land<10000)  return 3;
+        else if(land<60000)  return 2;
+        else if(land<160000) return 1;
+        else if(land<300000) return 0;
+        else                 return -1;
+      }
+
+      for (let tick = 1; tick <= maxTick; tick++) {
+        if (tick % 10 === 0) {
+          const rate = computeInterestRate(tick, land, troops);
+          troops += Math.max(Math.floor((troops + 0.5) * rate / 10000), 1);
+          if (tick % 100 === 0) troops += land;
+        }
+        if (addExp > 0) {
+          if (atk === 0) timer = 7;
+          const avg = landclaim(landexp(level), addExp + totalExp);
+          const cost = avg * 2;
+          const need = cost + landexp(level) + (addExp + totalExp) * 4;
+          const send = need - atk;
+          const tax = Math.floor((troops + 0.5) * 3 / 256);
+          if (send + tax <= troops) {
+            atk += send;
+            troops -= send + tax;
+            totalExp += addExp;
+          }
+          addExp = 0;
+        }
+        if (timer <= 0 && atk > 0) {
+          for(let repeat = timer; repeat <=0; repeat++){
+            if (totalExp > 0 && atk >= landexp(level) * 3) {
+              timer = expansionspeed();
+              land += landexp(level + 1);
+              atk -= landexp(level + 1) * 2;
+              level++; totalExp--;
+            } else {
+              troops += atk; atk = 0; totalExp = 0;
+            }
+          }
+        }
+        if (atk > 0) timer--;
+        if (lookup < events.length && events[lookup].t === tick) { addExp = events[lookup].e; lookup++; }
+        ticks.forEach((t, i) => {
+          if (t === tick) {
+            results[i] = { land, troops, attacking:atk, interest:computeInterestRate(tick,land,troops) };
+          }
+        });
+        logs.push({ tick, land, troops, attacking:atk, addExp, totalExp, level, timer });
+      }
+      lastSim = { results, logs };
+      return lastSim;
+    }
+
+    // ─── Recalc & render ──────────────────────────────────────────
+    function recalc(){
+      // sort rows
+      Array.from(simBody.rows)
+        .sort((a,b)=>{
+          const ta=+a.querySelector('td[data-col="tick"]').textContent||Infinity;
+          const tb=+b.querySelector('td[data-col="tick"]').textContent||Infinity;
+          return ta-tb;
+        })
+        .forEach(r=>simBody.appendChild(r));
+
+      const sim = runSimulation();
+
+      simBody.querySelectorAll('tr').forEach((tr,i)=>{
+        const d = sim.results[i]||{};
+        // fill in computed columns
+        ['land','troops','attacking','interest'].forEach(col=>{
+          tr.querySelector(`td[data-col="${col}"]`).textContent =
+            d[col]!=null ? d[col] : '';
+        });
+        // compute each custom column
+        columns.filter(c => c.isCustom).forEach(c => {
+  const td      = tr.querySelector(`td[data-col="${c.key}"]`);
+  const tickVal = +tr.querySelector('td[data-col="tick"]').textContent;
+  if (!tickVal || td.matches(':focus')) {
+    td.textContent = '';
+    return;
+  }
+
+  // pull the formula from the header, not from the old td
+  const headerTh = headerRow.querySelector(`th[data-col="${c.key}"]`);
+  const f        = (headerTh.dataset.formula || '').trim();
+
+  // keep the cell’s dataset in sync
+  td.dataset.formula = f;
+
+  if (!f) {
+    td.textContent = '';
+    return;
+  }
+
+  try {
+    const fn = new Function(
+      'troops','attacking','interest','land','floor','fix',
+      'return ' + f
+    );
+    const v = fn(d.troops, d.attacking, d.interest, d.land, floor, fix);
+    td.textContent = isNaN(v) ? 'Error' : v;
+  } catch {
+    td.textContent = 'Error';
+  }
+});
+      });
+
+      document.getElementById('debug').textContent = JSON.stringify(lastSim.logs,null,2);
+      saveState();
+    }
+
+    // ─── Editable-handling & formula‐editing on any custom <th> ───
+    simBody.addEventListener('keydown',e=>{
+      if(e.target.classList.contains('editable') && e.key==='Enter'){
+        e.preventDefault(); e.target.blur();
+      }
+    });
+    simBody.addEventListener('focusout',e=>{
+      if(e.target.classList.contains('editable')) recalc();
+    });
+
+    // inline‐edit for every <th> that has data-formula
+    headerRow
+  .querySelectorAll('th[data-formula][data-custom-editable="true"]')
+  .forEach(th => {
+    th.dataset.label = th.textContent;
+    th.contentEditable = false;
+    th.addEventListener('dblclick', () => {
+      th.contentEditable = true;
+      th.textContent = th.dataset.formula;
+      th.focus();
+    });
+    th.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); th.blur(); }
+    });
+    th.addEventListener('blur', () => {
+      const newF = th.textContent.trim();
+      th.dataset.formula = newF;
+      th.textContent = th.dataset.label;
+      th.contentEditable = false;
+      // propagate to body cells…
+      simBody.querySelectorAll(`td[data-col="${th.dataset.col}"]`)
+        .forEach(td => td.dataset.formula = newF);
+      recalc();
+    });
+  });
+
+
+    // ─── Export CSV (unchanged) ────────────────────────────────────
+    exportBtn.addEventListener('click',()=>{
+      recalc();
+      const logs = lastSim.logs||[], maxTick=logs.length?logs[logs.length-1].tick:0;
+      const threshold=Math.floor(maxTick/100+1)*100;
+      let csv = 'Tick,Land,Troops,Attacking,AddExp,TotalExp,Level,Timer\n';
+      for(let t=1;t<=threshold;t++){
+        const e=logs.find(l=>l.tick===t)||{};
+        csv += `${t},${e.land||''},${e.troops||''},${e.attacking||''},${e.addExp||''},${e.totalExp||''},${e.level||''},${e.timer||''}\n`;
+      }
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download='simulation.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ─── Column-drag/reorder + persist ────────────────────────────
+    // ─── Column-drag/reorder ───────────────────────────────────────
+// ─── Column–drag & drop reordering ────────────────────────────
+let dragTh = null,
+    startX = 0,
+    isDragging = false,
+    insertIdx = null;
+
+headerRow.addEventListener('mousedown', e => {
+  if (document.activeElement.isContentEditable) return;
+  if (e.target.tagName !== 'TH') return;
+  dragTh = e.target;
+  startX = e.clientX;
+  isDragging = false;
+  // clear any text selection
+  window.getSelection().removeAllRanges();
+  e.preventDefault();
+});
+
+// ——— column drag & drop ———
+headerRow.addEventListener('mousemove', e => {
+  if (!dragTh) return;
+  // start dragging after a small threshold
+  if (!isDragging && Math.abs(e.clientX - startX) > 5) {
+    isDragging = true;
+    dragTh.classList.add('dragging');
+  }
+  if (!isDragging) return;
+
+  // clear any old insert markers
+  Array.from(headerRow.children).forEach(th => th.classList.remove('insert-target'));
+
+  const ths = Array.from(headerRow.children);
+  insertIdx = null;
+
+  // find first column midpoint to the right of cursor
+  for (let i = 0; i < ths.length; i++) {
+    const th = ths[i];
+    if (th === dragTh) continue;
+    const rect = th.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) {
+      th.classList.add('insert-target');
+      insertIdx = i;
+      break;           // 👈 only one green line
+    }
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  // always clear any insert indicators
+  Array.from(headerRow.children).forEach(th => th.classList.remove('insert-target'));
+
+  if (dragTh && isDragging) {
+    const ths  = Array.from(headerRow.children);
+    const from = ths.indexOf(dragTh);
+    const to   = insertIdx != null ? insertIdx : ths.length;
+    if (from !== to) {
+      // move each row’s cell in lockstep with the header
+      [headerRow, ...simBody.rows].forEach(tr => {
+        const cells = Array.from(tr.children);
+        const cell  = cells.splice(from, 1)[0];
+        cells.splice(to > from ? to - 1 : to, 0, cell);
+        tr.innerHTML = '';
+        cells.forEach(c => tr.appendChild(c));
+      });
+      saveState();  // persist new order
+    }
+  }
+
+  // always remove the dragging style
+  if (dragTh) dragTh.classList.remove('dragging');
+
+  // only clear text‐selection if we actually dragged
+  if (isDragging) window.getSelection().removeAllRanges();
+
+  // reset drag state
+  dragTh      = null;
+  isDragging  = false;
+  insertIdx   = null;
+});
+
+
+
+    // ─── Persist + init ───────────────────────────────────────────
+    function loadState(){
+      const raw = localStorage.getItem('simState');
+      if (!raw) return;
+      const { columnOrder, headerFormulas, rows } = JSON.parse(raw);
+
+      // a) restore header formulas
+      headerRow.querySelectorAll('th[data-formula]').forEach(th=>{
+        const f = headerFormulas[th.dataset.col];
+        if (f) th.dataset.formula = f;
+      });
+
+      // b) restore column order
+      // ─── restore column order (but include any new columns at the end) ───
+if (Array.isArray(columnOrder)) {
+  // map every <th> by its data-col
+  const oldThs = Array.from(headerRow.children);
+  const mapTh  = Object.fromEntries(oldThs.map(th => [th.dataset.col, th]));
+
+  // clear out the header
+  headerRow.innerHTML = '';
+
+  // 1) append saved columns in their old order
+  columnOrder.forEach(key => {
+    if (mapTh[key]) headerRow.appendChild(mapTh[key]);
+  });
+
+  // 2) now append ANY columns you’ve since added in your `columns` array
+  columns.forEach(col => {
+    if (!columnOrder.includes(col.key) && mapTh[col.key]) {
+      headerRow.appendChild(mapTh[col.key]);
+    }
+  });
+
+  // do the exact same for each body row:
+  simBody.querySelectorAll('tr').forEach(tr => {
+    const oldTds = Array.from(tr.children);
+    const newTds = [];
+
+    // saved ones first
+    columnOrder.forEach(key => {
+      const idx = oldThs.findIndex(th => th.dataset.col === key);
+      if (idx >= 0) newTds.push(oldTds[idx]);
+    });
+
+    // then the brand-new columns
+    columns.forEach(col => {
+      if (!columnOrder.includes(col.key)) {
+        const idx = oldThs.findIndex(th => th.dataset.col === col.key);
+        if (idx >= 0) newTds.push(oldTds[idx]);
+      }
+    });
+
+    // re-attach
+    tr.innerHTML = '';
+    newTds.forEach(td => tr.appendChild(td));
+  });
+}
+
+    }
+
+    // ─── 4) saveState (column order + headerFormulas + only tick/exp) ─
+    function saveState(){
+      const columnOrder = Array.from(headerRow.children).map(th=>th.dataset.col);
+      const headerFormulas = {};
+      headerRow.querySelectorAll('th[data-formula]').forEach(th=>{
+        headerFormulas[th.dataset.col] = th.dataset.formula;
+      });
+      const rows = [];
+      Array.from(simBody.rows).forEach(tr=>{
+        const r = {};
+        // only tick & expansions
+        r.tick       = tr.querySelector('td[data-col="tick"]').textContent;
+        r.expansions = tr.querySelector('td[data-col="expansions"]').textContent;
+        rows.push(r);
+      });
+      localStorage.setItem('simState', JSON.stringify({ columnOrder, headerFormulas, rows }));
+    }
+
+    loadState();
+    recalc();
+  </script>
+</body>
+</html>
