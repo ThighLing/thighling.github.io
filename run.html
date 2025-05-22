@@ -99,7 +99,7 @@ if (col.isCustom) {
     function landclaim(l,e){ return (l+((e+1)/2)*4)*e; }
     function computeInterestRate(t,land,troops){
       const base=(13440 - t*6)*100/1920;
-      const mod=Math.max(Math.min(1 - ((land/troops-100)*2)/100,1),0);
+      const mod=Math.max(Math.min(1 - ((troops/land-100)*2)/100,1),0);
       return Math.floor(base*mod);
     }
     function floor(x){return Math.floor(x);}
