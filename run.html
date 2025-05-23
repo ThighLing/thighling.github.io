@@ -15,10 +15,15 @@
     td.editable { background: #fff; }
     td.custom { font-style: italic; }
     pre#debug { margin-top: 20px; max-height: 200px; overflow: auto; background: #f0f0f0; padding: 10px; }
+	#modeBtn.mp {
+      background: #666;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
-  <button id="exportBtn">Export CSV</button>
+  <button id="exportBtn">Export CSV</button>  
+  <button id="modeBtn">SP Mode</button>
   <table id="simTable">
     <thead><tr></tr></thead>
     <tbody id="simBody"></tbody>
@@ -93,14 +98,33 @@ if (col.isCustom) {
       });
       simBody.appendChild(tr);
     }
+	
+	
+	let mpMode = localStorage.getItem('mpMode') === 'true';
+const modeBtn = document.getElementById('modeBtn');
+
+function updateModeButton() {
+  modeBtn.textContent = mpMode ? 'MP Mode' : 'SP Mode';
+  modeBtn.classList.toggle('mp', mpMode);
+}
+updateModeButton();
+
+modeBtn.addEventListener('click', () => {
+  mpMode = !mpMode;
+  localStorage.setItem('mpMode', mpMode);
+  updateModeButton();
+  recalc(); // re-run simulation
+});
+
+	
 
     // ─── Helpers & rounding ──────────────────────────────────────
     function landexp(i){ return i*4; }
     function landclaim(l,e){ return (l+((e+1)/2)*4)*e; }
     function computeInterestRate(t,land,troops){
-      const base=(13440 - t*6)*100/1920;
-      const mod=Math.max(Math.min(1 - ((troops/land-100)*2)/100,1),0);
-      return Math.floor(base*mod);
+      const base=Math.floor(((13440 - (t-1)*6)*100+0.5)/1920);
+      const mod=Math.max(Math.min(((troops/land-100)*2)/100,1),0);
+      return Math.floor(base-Math.floor(base*mod));
     }
     function floor(x){return Math.floor(x);}
     function fix(x,n){return Number(x.toFixed(n));}
@@ -116,10 +140,25 @@ if (col.isCustom) {
         const c = r.querySelector('td[data-col="expansions"]');
         return parseInt(c.textContent) || 0;
       });
-      const events = ticks.map((t, i) => ({ t, e: exps[i], i }))
-                         .filter(ev => ev.t && ev.e)
-                         .sort((a, b) => a.t - b.t);
-      const maxTick = Math.max(...ticks.filter(t => t));
+        // if MP mode is on, snap every attack tick up to the next multiple of 7
+  const usedTicks = ticks.map(t =>
+    t ? (mpMode ? Math.ceil(t / 7) * 7 : t)
+      : null
+  );
+
+  const events = usedTicks
+    .map((t, i) => ({ t, e: exps[i], i }))
+    .filter(ev => ev.t && ev.e)
+    .sort((a, b) => a.t - b.t);
+
+  // run out to the last scheduled event, or fallback to raw max
+  // always run out to the furthest‐ahead tick,
+  // whether it came from an expansion event or just a raw tick
+  const rawMax = Math.max(...ticks.filter(t => t));
+  const lastEventTick = events.length ? events[events.length - 1].t : 0;
+  const maxTick = Math.max(rawMax, lastEventTick);
+
+
 
       let lookup = 0, timer = 0, totalExp = 0, addExp = 0;
       let atk = 0, troops = 512, land = 12, level = 2;
@@ -138,8 +177,10 @@ if (col.isCustom) {
       for (let tick = 1; tick <= maxTick; tick++) {
         if (tick % 10 === 0) {
           const rate = computeInterestRate(tick, land, troops);
-          troops += Math.max(Math.floor((troops + 0.5) * rate / 10000), 1);
-          if (tick % 100 === 0) troops += land;
+		  let changetroops = Math.max(Math.floor((troops + 0.5) * rate / 10000), 1);
+          
+          if (tick % 100 === 0) changetroops += land;
+		  troops += Math.min(changetroops, Math.max(land*150-troops,0));
         }
         if (addExp > 0) {
           if (atk === 0) timer = 7;
@@ -388,6 +429,11 @@ document.addEventListener('mouseup', () => {
       });
 
       // b) restore column order
+	  rows.forEach((rowData, i) => {
+  const tr = simBody.rows[i];
+  tr.querySelector('td[data-col="tick"]').textContent       = rowData.tick       || '';
+  tr.querySelector('td[data-col="expansions"]').textContent = rowData.expansions || '';
+});
       // ─── restore column order (but include any new columns at the end) ───
 if (Array.isArray(columnOrder)) {
   // map every <th> by its data-col
@@ -458,4 +504,4 @@ if (Array.isArray(columnOrder)) {
     recalc();
   </script>
 </body>
-</html>
+</html> 
