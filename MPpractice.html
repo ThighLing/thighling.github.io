@@ -31,7 +31,6 @@
             "use strict";
             (function() {
 			var EnableDelay = 0;
-			var EnableDelay = false;
 			var sample = 0;
 			var average = 0;
 			var Delay = Infinity;
@@ -2783,7 +2782,11 @@
                     ;
                     this.hD = function(iF, j6) {
 						if (aD.kE) {
+						if (MpMode) {
                             savedHD.push([be.js(), iF, j6]);
+						}else{
+							b7.o0.hD(aD.eQ, iF, j6);
+						}
                         } else {
 								az.o5.o7(iF, j6);
 								sendjs = be.js();
@@ -8845,6 +8848,7 @@
                         bQ.dX();
                         this.z4 = this.jv = this.data.humanCount;
                         this.kE = this.z4 === 1;
+						MpMode = this.kE;
                         this.mF = false;
                         this.gp = this.data.isReplay;
                         this.kC = this.data.gameMode === 0 ? [7, 10, 8][this.data.battleRoyaleMode] : this.data.isZombieMode ? 9 : (this.data.numberTeams - 2);
@@ -29399,7 +29403,6 @@
                     this.aX0 = null;
                     this.aX1 = 7;
                     this.a5u = 0;
-					EnableDelay = false;
 					Delay = Infinity;
 					Samples = 0;
 					avrDelay = 0;
@@ -29695,7 +29698,6 @@
                     ;
                 }
                 function aXJ() {
-				EnableDelay = false;
 				Delay = Infinity;
 				Samples = 0;
 				avrDelay = 0;
@@ -29784,8 +29786,8 @@
 							Delay = Infinity;}
 							Samples++
 						}}
-						else if (e.key === '1') {
-							EnableDelay = 0;
+						else if (e.key === 'x') {
+							MpMode = !MpMode;
 
 						}
 						});
