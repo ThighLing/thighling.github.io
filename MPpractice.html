@@ -30,10 +30,13 @@
         <script>
             "use strict";
             (function() {
+			var EnableDelay = 0;
 			var EnableDelay = false;
 			var sample = 0;
 			var average = 0;
 			var Delay = Infinity;
+			var Samples = 0;
+			var avrDelay = 0;
 			var sendjs = 0;
 			var savedHD = []; 
 			var debugg = []; 
@@ -2799,7 +2802,6 @@
 								var b = pair[1]
 								var c = pair[2]
 								debugg.push([a, b, c, "success", be.js(), Math.ceil((a+aD.data.mapSeed-0.5)/7)*7]);
-                                savedHD.splice(i, 1);
 								sendjs = a;
 								Delay =Math.min(be.js()-sendjs,Delay);
 								
@@ -8386,12 +8388,10 @@
                             hK = b3.a2c(player, hK);
                         }
 						if (player === aD.eQ && !aD.kE){
-						a = savejs.splice(0, 1);
-						if(sendjs>100){
-						savejs = [];
-						}else{
+						var tick = be.js();
+						debugg.push([tick, savejs[savejs.length-1]])
+						var a = savejs[savejs.length-1];
 						sendjs = a;
-						}
 						Delay =Math.min(Delay,be.js()-sendjs);
 						;
 						}
@@ -29401,10 +29401,13 @@
                     this.a5u = 0;
 					EnableDelay = false;
 					Delay = Infinity;
+					Samples = 0;
+					avrDelay = 0;
 					savejs = [];
 					sendjs = 0;
 					sample = 0;
 					average = 0;
+					EnableDelay = 0;
                     savedHD = [];
                     this.dX = function() {
                         this.aEo = 0;
@@ -29694,6 +29697,8 @@
                 function aXJ() {
 				EnableDelay = false;
 				Delay = Infinity;
+				Samples = 0;
+				avrDelay = 0;
 				sendjs = 0;
 				sample = 0;
 				average = 0;
@@ -29701,6 +29706,7 @@
                     var e1 = 0;
                     var eF = be.eF;
                     this.aWy = 0;
+					EnableDelay = 0;
                     this.iq = function() {
                         h.iq();
                         if (aD.h1) {
@@ -29770,8 +29776,26 @@
                         this.df = true;
                     }
                     ;
+					document.addEventListener('keydown', (e) => {
+						if (e.key === '`') {
+						if(EnableDelay === 0){
+							EnableDelay = 7;
+							if (Samples > 0){
+							Delay = Infinity;}
+							Samples++
+						}}
+						else if (e.key === '1') {
+							EnableDelay = 0;
+
+						}
+						});
 					
                     this.iq = function() {
+						if(EnableDelay > 0&& be.js()%15 === 0){ 
+						sendjs = be.js();
+						savejs[savejs.length] = be.js();
+						EnableDelay--
+						bS.hH();}
                         this.zA.aWy++;
 						b7.h2.executeSavedHD();
 						
