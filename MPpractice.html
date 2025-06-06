@@ -30,9 +30,17 @@
         <script>
             "use strict";
             (function() {
+			
+			var keyValue = 0;
 			var resistance = false;
 			var Redo = "Redo";
-			var MpMode = true;
+
+			let MpMode = localStorage.getItem("MpMode");
+if (MpMode === null) {
+  MpMode = true; 
+} else {
+  MpMode = (MpMode === "1");
+}
 			var EnableDelay = 0;
 			var sample = 0;
 			var average = 0;
@@ -21542,6 +21550,7 @@
                         aD.a3X();
                         aD.a3W = 1;
                     }
+					window.aNn = aNn;
                     function aMJ() {
                         var pb = [];
                         aNs(pb);
@@ -22868,7 +22877,7 @@
                     ;
                     dX();
                 }
-				let keyValue = 0;
+				
 				window.addEventListener('keydown', function(e) {
 					// Check if the key pressed is one of '1' through '9'
     if (['1','2','3','4','5','6','7','8','0'].includes(e.key)) {
@@ -22880,7 +22889,7 @@
     }
 	if (e.key === 'r') {
 				Redo = "Redo"
-                aD.a3X();
+                aNn();
 				
 				return;
             }
@@ -22892,8 +22901,10 @@
 		aD.data.spawningSeed = Math.floor(2048 * Math.random())*8 + keyValue;
 		Redo = "Semi"
 		}
-		
-                aD.a3X();
+	
+                aNn();
+
+	
             }
 });
                 function aL5() {
@@ -29831,8 +29842,7 @@
 						}}
 						else if (e.key === 'x') {
 							MpMode = !MpMode;
-							
-
+							 localStorage.setItem("MpMode", MpMode ? "1" : "0");
 						}
 						});
 					
