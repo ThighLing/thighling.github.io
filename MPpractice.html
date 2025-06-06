@@ -22893,7 +22893,7 @@ if (MpMode === null) {
 				
 				return;
             }
-	if (e.key === 'z') {
+	if (e.key === '`') {
 	if(keyValue === 0){
 		aD.data.spawningSeed = Math.floor(16384 * Math.random());
 		Redo = "Rand"
@@ -29833,14 +29833,14 @@ if (MpMode === null) {
                     }
                     ;
 					document.addEventListener('keydown', (e) => {
-						if (e.key === '`') {
+						if (e.key === '\\') {
 						if(EnableDelay === 0){
 							EnableDelay = 7;
 							if (Samples > 0){
 							Delay = Infinity;}
 							Samples++
 						}}
-						else if (e.key === 'x') {
+						else if (e.key === 'shift') {
 							MpMode = !MpMode;
 							 localStorage.setItem("MpMode", MpMode ? "1" : "0");
 						}
