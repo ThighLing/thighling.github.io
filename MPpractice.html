@@ -7564,6 +7564,43 @@ if (MpMode === null) {
                         var e0 = window.innerWidth / document.documentElement.clientWidth;
                         return e0 < 0.999 || e0 > 1.001;
                     }
+					window.addEventListener('keydown', function(e) {
+					  if (aD.a3W === 0) {
+        return;
+    }
+
+    // 2) If aD.kE is false, bail out
+    if (!aD.kE) {
+        return;
+    }
+					// Check if the key pressed is one of '1' through '9'
+    if (['1','2','3','4','5','6','7','8','0'].includes(e.key)) {
+		 keyValue = parseInt(e.key, 10);
+            // For key "9": set spawningSeed to a random number between 0 and 16383.
+        
+		
+		
+    }
+	if (e.key === 'r') {
+				Redo = "Redo"
+                aNn();
+				
+				return;
+            }
+	if (e.key === '`') {
+	if(keyValue === 0){
+		aD.data.spawningSeed = Math.floor(16384 * Math.random());
+		Redo = "Rand"
+		}else{
+		aD.data.spawningSeed = Math.floor(2048 * Math.random())*8 + keyValue;
+		Redo = "Semi"
+		}
+	
+                aNn();
+
+	
+            }
+});
                     function a0i(e) {
                         if (a0l()) {
                             return;
@@ -22878,35 +22915,7 @@ if (MpMode === null) {
                     dX();
                 }
 				
-				window.addEventListener('keydown', function(e) {
-					// Check if the key pressed is one of '1' through '9'
-    if (['1','2','3','4','5','6','7','8','0'].includes(e.key)) {
-		 keyValue = parseInt(e.key, 10);
-            // For key "9": set spawningSeed to a random number between 0 and 16383.
-        
-		
-		
-    }
-	if (e.key === 'r') {
-				Redo = "Redo"
-                aNn();
 				
-				return;
-            }
-	if (e.key === '`') {
-	if(keyValue === 0){
-		aD.data.spawningSeed = Math.floor(16384 * Math.random());
-		Redo = "Rand"
-		}else{
-		aD.data.spawningSeed = Math.floor(2048 * Math.random())*8 + keyValue;
-		Redo = "Semi"
-		}
-	
-                aNn();
-
-	
-            }
-});
                 function aL5() {
                     var aLL;
                     var aOL;
