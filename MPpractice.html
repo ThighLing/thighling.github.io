@@ -30,6 +30,7 @@
         <script>
             "use strict";
             (function() {
+			var Redo = "Redo";
 			var MpMode = true;
 			var EnableDelay = 0;
 			var sample = 0;
@@ -6005,7 +6006,7 @@
                     aL.tn();
                     aX.tn();
                     bd.tn();
-                    au.tn();
+                    //au.tn();
                     t.tn();
                 }
                 function xC(xD, i, j) {
@@ -8824,7 +8825,6 @@
                     this.wF = 512;
                     this.a2X = 150;
                     this.kE = true;
-					MpMode = this.kE;
                     this.gp = 0;
                     this.z1 = 0;
                     this.jf = 0;
@@ -8850,7 +8850,6 @@
                         bQ.dX();
                         this.z4 = this.jv = this.data.humanCount;
                         this.kE = this.z4 === 1;
-						MpMode = this.kE;
                         this.mF = false;
                         this.gp = this.data.isReplay;
                         this.kC = this.data.gameMode === 0 ? [7, 10, 8][this.data.battleRoyaleMode] : this.data.isZombieMode ? 9 : (this.data.numberTeams - 2);
@@ -12976,7 +12975,7 @@
                         a9V[3] = L(118);
                         a9V[4] = L(119);
                         a9V[5] = L(120, 0, S[101]);
-                        a9V[6] = 'Seed';
+                        a9V[6] = Redo;
                         a9V[7] = L(122);
 						a9V[8] = 'Delay';
                         a9W = new Array(a9V.length);
@@ -13093,6 +13092,7 @@
                             }
                         }
                     }
+					var resistance = false;
                     function a9e(aB) {
                         if (aB < 3) {
                             return a9X[aB].toString();
@@ -13105,6 +13105,10 @@
 						} else if (aB === 6) {
                             return aD.data.spawningSeed;
 						} else if (aB === 8) {
+							if((!MpMode || resistance )&&aD.kE){
+							resistance = true;
+							return MpMode ? 'MSingle' : 'Single';
+							}
                             return (Delay).toFixed(1);
                         } else if (aB < 7) {
                             return b9.zd.yJ(a9X[aB]);
@@ -22863,6 +22867,34 @@
                     ;
                     dX();
                 }
+				let keyValue = 0;
+				window.addEventListener('keydown', function(e) {
+					// Check if the key pressed is one of '1' through '9'
+    if (['1','2','3','4','5','6','7','8','0'].includes(e.key)) {
+		 keyValue = parseInt(e.key, 10);
+            // For key "9": set spawningSeed to a random number between 0 and 16383.
+        
+		
+		
+    }
+	if (e.key === 'r') {
+				Redo = "Redo"
+                aD.a3X();
+				
+				return;
+            }
+	if (e.key === 'z') {
+	if(keyValue === 0){
+		aD.data.spawningSeed = Math.floor(16384 * Math.random());
+		Redo = "Rand"
+		}else{
+		aD.data.spawningSeed = Math.floor(2048 * Math.random())*8 + keyValue;
+		Redo = "Semi"
+		}
+		
+                aD.a3X();
+            }
+});
                 function aL5() {
                     var aLL;
                     var aOL;
@@ -23576,6 +23608,7 @@
                     ;
                     dX();
                 }
+				
                 function aLC() {
                     var aMF;
                     var aMG;
@@ -23647,6 +23680,11 @@
                         ));
                         pb.push(aLe);
                     }
+					
+					
+					
+				
+					
                     function aMM(pb) {
                         var aLe = new pJ();
                         aLe.pM(S[98]);
@@ -29790,6 +29828,7 @@
 						}}
 						else if (e.key === 'x') {
 							MpMode = !MpMode;
+							
 
 						}
 						});
