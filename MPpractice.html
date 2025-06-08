@@ -30,7 +30,7 @@
         <script>
             "use strict";
             (function() {
-			
+			let accumulatedData = [];
 			var keyValue = 0;
 			var resistance = false;
 			var Redo = "Redo";
@@ -7565,6 +7565,13 @@ if (MpMode === null) {
                         return e0 < 0.999 || e0 > 1.001;
                     }
 					window.addEventListener('keydown', function(e) {
+					if (e.key === 'x') {
+                
+                            
+                        
+				
+				return;
+            }
 					  if (aD.a3W === 0) {
         return;
     }
@@ -17297,6 +17304,15 @@ if (MpMode === null) {
                         }
                         aH1(9);
                     }
+					let TotalIncome = 0;
+					let prevTotalExpenses = 0;
+					let prevLand = 12;
+					let TotalExpenses = 0;
+					let TotalTroops = 0;
+					let land = 12;
+					let efficiency = 0;
+					let sample = 0;
+					let openingval = 0;
                     function aGy() {
                         aGz();
                         if (aD.data.tIncomeType === 0) {
@@ -17307,7 +17323,133 @@ if (MpMode === null) {
                             aH3();
                         }
                         aH1(8);
+						ae.logging();
+						}
+						
+					this.logging = function() {
+						
+						var f88 = bc.lh;
+						TotalIncome = f88[8] + f88[9] + f88[10] + f88[18];
+						prevTotalExpenses = TotalExpenses;
+						TotalExpenses = f88[12] + f88[13] + f88[15] + f88[16];
+						
+                        TotalTroops = TotalIncome - TotalExpenses;
+						prevLand = land;
+                        land = ag.gT[0];
+						
+						if ((land-prevLand) !== 0){
+						efficiency = (TotalExpenses - prevTotalExpenses) / (land-prevLand);
+						}
+						
+						const beValue = be.js();
+
+    // If be.js() returns 99, reset the accumulator
+
+    
+    // Compute the first field using bK.dm(beValue + 1, 100)
+    const firstValue = bK.dm(beValue + 1, 100);
+	
+	
+    //ag.gT[0] land 
+	//ag.gh[0] troops
+
+    // Build a record with ag.gT[0] and ag.gh[0] separated by a tab
+	if (firstValue === 9){
+	 openingval = bK.dm((TotalTroops - ag.gT[0]) / 4 + ag.gT[0], 1);
+	}
+	if (firstValue > 9){
+		sample = sample*(1-1/(firstValue - 9)*((beValue%100+1)/100)) + efficiency*1/(firstValue - 9)*((beValue%100+1)/100);
+	
+	}
+    const dataToSave = ag.gT[0] + '\t' + TotalTroops + '\t' + efficiency+ '\t' +sample +'\n';
+	const troops = bA.nL - bA.n3;
+	
+	
+	
+	// (aD.jf - ag.gT[0])/al.jw
+	//+ al.jx+ '\t' 
+	// ag.g7[0] has something to do with border???
+
+	//ag.gL[0].length border length
+	//ad.fl(aD.eQ) amount of territories you are attacking including empty land
+	
+	
+	//bN.fC[0] before land add
+	//ag.xX[0] Name
+	// ag.zf[0] Name
+	
+    // Accumulate the record
+	
+    accumulatedData.push(dataToSave);
+	
+	
+
                     }
+					
+					window.addEventListener('keydown', function(e) {
+    // e.key === "/" for the slash key
+    if (e.key === '/') {
+        ae.savedata();
+    }
+});
+
+	this.savedata = function() {
+	  const finestats = bK.dm((TotalTroops) / 4 + ag.gT[0], 1);
+    const dataToSave =  'Seed:'+aD.data.spawningSeed + '\t' + openingval + '\t' + finestats + '\t' + (sample).toFixed(2)+ '\n';
+  navigator.clipboard.writeText(dataToSave)
+    .then(() => {
+      console.log("Clipboard updated with: " + finestats);
+    })
+    .catch(err => {
+      console.error("Clipboard update failed: ", err);
+    });
+  
+
+
+  accumulatedData.push(dataToSave);
+	
+	
+	
+	
+	
+	const finalData = accumulatedData.join('');
+        const blob = new Blob([finalData], { type: 'text/plain' });
+        const link = document.createElement('a');
+
+        // Determine the file name based on aD.data.mapType
+		//(ag.gh[0]-ag.gT[0])/4 + ag.gT[0]
+		
+		
+		
+		
+		//ag.gT[0] land 
+		//ag.gh[0] troops
+		const k4value = bK.dm((TotalTroops-ag.gT[0])/4 + ag.gT[0],100)/10;  //bK.dm(ag.gT[0] + ag.gh[0]/4,100)/10;
+        let fileName;
+        if (aD.data.mapType === 0) {
+    fileName = aD.data.mapType + '_' + aD.data.mapProceduralIndex;
+} else if (aD.data.mapType === 1) {
+    fileName = aD.data.mapType + '_' + aD.data.mapRealisticIndex;
+} else {
+    fileName = aD.data.mapType + '_' + aD.data.mapType;
+}
+    fileName = fileName + '_' + aD.data.spawningSeed + '_' + k4value + 'k4' + '.txt';
+        
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        
+        // Trigger the download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Reset the accumulator after saving
+        accumulatedData = [];
+	
+	
+	
+	
+	}
                     function aH2(mO) {
                         var gT = ag.gT;
                         var jx = al.jx;
@@ -29465,6 +29607,7 @@ if (MpMode === null) {
                     this.aX1 = 7;
                     this.a5u = 0;
 					Delay = Infinity;
+					accumulatedData = [];
 					resistance = false;
 					Samples = 0;
 					avrDelay = 0;
@@ -29760,6 +29903,7 @@ if (MpMode === null) {
                     ;
                 }
                 function aXJ() {
+				accumulatedData = [];
 				Delay = Infinity;
 				resistance = false;
 				Samples = 0;
