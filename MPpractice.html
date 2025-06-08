@@ -41,6 +41,7 @@ if (MpMode === null) {
 } else {
   MpMode = (MpMode === "1");
 }
+			var tickles = 1;
 			var EnableDelay = 0;
 			var sample = 0;
 			var average = 0;
@@ -3453,6 +3454,7 @@ if (MpMode === null) {
                         }
                         if (pt) {
                             var qD = pt(this);
+							Redo = "Set"
                             if (!qD) {
                                 qE(this);
                             } else if (qD === 2) {
@@ -7572,9 +7574,20 @@ if (MpMode === null) {
 				
 				return;
             }
-					  if (aD.a3W === 0) {
+					  if (
+  // 1) If `be` isn’t even declared…
+  typeof be             === 'undefined' ||
+  // 2) …or `be.zA` isn’t declared…
+  typeof be.zA          === 'undefined' ||
+  // 3) …or `be.zA.aWy` itself isn’t declared…
+  typeof be.zA.aWy      === 'undefined'
+) {
         return;
     }
+	
+	if (tickles === 1){
+	return;
+}
 
     // 2) If aD.kE is false, bail out
     if (!aD.kE) {
@@ -29585,6 +29598,7 @@ if (MpMode === null) {
                 }
                 function aWx() {
                     this.aWy = 0;
+					tickles = 1;
                     this.iq = function() {
                         aO.iq();
                         aZ.iq();
@@ -29602,6 +29616,7 @@ if (MpMode === null) {
                     this.eF = be.eF;
                     this.e1 = 0;
                     this.aWy = 0;
+					tickles = 0;
                     this.aEo = 0;
                     this.aX0 = null;
                     this.aX1 = 7;
@@ -29915,6 +29930,7 @@ if (MpMode === null) {
                     var e1 = 0;
                     var eF = be.eF;
                     this.aWy = 0;
+					tickles = 0;
 					EnableDelay = 0;
                     this.iq = function() {
                         h.iq();
