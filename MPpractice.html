@@ -41,7 +41,7 @@ if (MpMode === null) {
 } else {
   MpMode = (MpMode === "1");
 }
-			var tickles = 1;
+			var ingamestatus = 1;
 			var EnableDelay = 0;
 			var sample = 0;
 			var average = 0;
@@ -2795,7 +2795,7 @@ if (MpMode === null) {
                     this.hD = function(iF, j6) {
 						if (aD.kE) {
 						if (MpMode) {
-                            savedHD.push([be.js(), iF, j6]);
+                            savedHD.push([be.js(), iF, j6,0]);
 						}else{
 							b7.o0.hD(aD.eQ, iF, j6);
 						}
@@ -2807,30 +2807,7 @@ if (MpMode === null) {
 						
                     }
                     ;
-					
-					this.executeSavedHD = function() {
-                        for (var i = (savedHD.length-1); i >= 0; i--) {
-                        var pair = savedHD[i];
-                            if (be.js() === Math.ceil((pair[0]+aD.data.mapSeed-0.5)/7)*7) {
-								b7.o0.hD(aD.eQ, pair[1], pair[2]);
-								var a = pair[0]
-								var b = pair[1]
-								var c = pair[2]
-								debugg.push([a, b, c, "success", be.js(), Math.ceil((a+aD.data.mapSeed-0.5)/7)*7]);
-								sendjs = a;
-								Delay =Math.min(be.js()-sendjs,Delay);
-								
-                            }
-							if (be.js() > Math.ceil((pair[0]+aD.data.mapSeed-0.5)/7)*7) {
-								var a = pair[0]
-								var b = pair[1]
-								var c = pair[2]
-								debugg.push([a, b, c, "fail", be.js(), Math.ceil((a+aD.data.mapSeed-0.5)/7)*7]);
-								savedHD.splice(i, 1);
-							}
-                            
-                        }
-                    };
+				
 					
                     this.o8 = function(iF, o9) {
                         if (aD.kE) {
@@ -2864,12 +2841,46 @@ if (MpMode === null) {
                     ;
                     this.oG = function(j6) {
                         if (aD.kE) {
-                            b7.o0.oG(aD.eQ, j6);
+						if (MpMode) {
+                            savedHD.push([be.js(), "", j6,1]);
+						}else{
+							b7.o0.oG(aD.eQ, j6);
+						}
+	
                         } else {
                             az.o5.oH(j6);
                         }
                     }
                     ;
+						
+					this.executeSavedHD = function() {
+                        for (var i = (savedHD.length-1); i >= 0; i--) {
+                        var pair = savedHD[i];
+                            if (be.js() === Math.ceil((pair[0]+aD.data.mapSeed-0.5)/7)*7) {
+							if(pair[3] === 1){
+							b7.o0.oG(aD.eQ, pair[2]);
+							}else{
+							b7.o0.hD(aD.eQ, pair[1], pair[2]);
+								var a = pair[0]
+								var b = pair[1]
+								var c = pair[2]
+								debugg.push([a, b, c, "success", be.js(), Math.ceil((a+aD.data.mapSeed-0.5)/7)*7]);
+								sendjs = a;
+								Delay =Math.min(be.js()-sendjs,Delay);
+								}
+                            }
+							if (be.js() > Math.ceil((pair[0]+aD.data.mapSeed-0.5)/7)*7) {
+								var a = pair[0]
+								var b = pair[1]
+								var c = pair[2]
+								debugg.push([a, b, c, "fail", be.js(), Math.ceil((a+aD.data.mapSeed-0.5)/7)*7]);
+								savedHD.splice(i, 1);
+							}
+                            
+                        }
+                    };
+					
+					
                     this.oI = function(oJ) {
                         if (aD.kE) {
                             b7.o0.oK(aD.eQ, oJ);
@@ -6669,7 +6680,7 @@ if (MpMode === null) {
                     }
                     ;
                     this.z0 = function() {
-                        if (yx()) {
+                        if (aD.yy === 1/*yx()*/) {
                             return;
                         }
                         aD.yy = 1;
@@ -7348,19 +7359,19 @@ if (MpMode === null) {
                         if (aX.gt(en, ep)) {
                             return;
                         }
-                        if (aL.a0q(en, ep)) {
+                        if (aL.a0q(en, ep)) {//attack 
                             return;
                         }
-                        if (aP.gt(en, ep)) {
+                        if (aP.gt(en, ep)) {//cancel or add
                             return;
                         }
-                        if (aM.gt(en, ep) >= 0) {
+                        if (aM.gt(en, ep) >= 0) {//exit
                             return;
                         }
                         if (av.gt(en, ep)) {
                             return;
                         }
-                        if (bI.a0r(en, ep)) {
+                        if (bI.a0r(en, ep)) {//move around/ zoom buttons
                             return;
                         }
                         aL.a0s(en, ep);
@@ -7585,7 +7596,7 @@ if (MpMode === null) {
         return;
     }
 	
-	if (tickles === 1){
+	if (ingamestatus === 1){
 	return;
 }
 
@@ -9354,7 +9365,7 @@ if (MpMode === null) {
                         }
                         if (a4F === 3) {
                             if (aD.h1) {
-                                b7.h2.h3(a47);
+                                b7.h2.h3(a47); //spawn in
                             }
                             return 1;
                         }
@@ -9364,7 +9375,7 @@ if (MpMode === null) {
                                     return 1;
                                 }
                                 bU.a4K(4);
-                                b7.h2.hD(aR.h7(), player);
+                                b7.h2.hD(aR.h7(), player); //attack
                             } else {
                                 b0.hF(player, aR.h7());
                             }
@@ -29598,7 +29609,7 @@ if (MpMode === null) {
                 }
                 function aWx() {
                     this.aWy = 0;
-					tickles = 1;
+					ingamestatus = 1;
                     this.iq = function() {
                         aO.iq();
                         aZ.iq();
@@ -29616,7 +29627,7 @@ if (MpMode === null) {
                     this.eF = be.eF;
                     this.e1 = 0;
                     this.aWy = 0;
-					tickles = 0;
+					ingamestatus = 0;
                     this.aEo = 0;
                     this.aX0 = null;
                     this.aX1 = 7;
@@ -29887,12 +29898,12 @@ if (MpMode === null) {
                         var fR = b8.ow.aS2;
                         var aXH = b8.ow.aS3;
                         var aXI = b8.ow.aS4;
-                        if (aX6 >= aXI.length) {
+                        /*if (aX6 >= aXI.length) {
                             aN.a0H("Replay file smaller than expected.");
                             bB.a18(false);
                             aD.z1 = 2;
                             return false;
-                        }
+                        }*/
                         kd = aXI[aX6];
                         if (!aXH[aX6]) {
                             if (++aX8 >= kd) {
@@ -29930,7 +29941,7 @@ if (MpMode === null) {
                     var e1 = 0;
                     var eF = be.eF;
                     this.aWy = 0;
-					tickles = 0;
+					ingamestatus = 0;
 					EnableDelay = 0;
                     this.iq = function() {
                         h.iq();
