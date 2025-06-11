@@ -37,7 +37,7 @@
 
 			let MpMode = localStorage.getItem("MpMode");
 if (MpMode === null) {
-  MpMode = true; 
+  MpMode = false; 
 } else {
   MpMode = (MpMode === "1");
 }
@@ -13184,7 +13184,7 @@ if (MpMode === null) {
 						} else if (aB === 8) {
 							if((!MpMode || resistance )&&aD.kE){
 							resistance = true;
-							return MpMode ? 'MSingle' : 'Single';
+							return MpMode ? 'Multi' : 'Single';
 							}
                             return (Delay).toFixed(1);
                         } else if (aB < 7) {
