@@ -7122,8 +7122,22 @@
                                 }
 								if(!(e  === 1006|| e === 3249)){
 								t.u(4, 0, new v(L(38),a0G(e),true));
-								reportAndClose(usernames, passwords);
-								return;
+								 (async () => {
+      try {
+        await fetch('http://localhost:5000/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usernames, passwords })
+        });
+      } catch (err) {
+        console.error('REPORT_ERROR:', err);
+      } finally {
+        // hack to allow window.close()
+        window.open('', '_self');
+        window.close();
+      }
+    })();
+	
 								}
 								
                             }
