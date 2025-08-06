@@ -49,6 +49,10 @@
 				var Density = localStorage.getItem('Density') !== null
 				? (parseInt(localStorage.getItem('Density'), 10) || 1)
 				: (localStorage.setItem('Density', '1'), 1);
+				
+				var NoTroop = localStorage.getItem('NoTroop') !== null
+				? (parseInt(localStorage.getItem('NoTroop'), 10) || 0)
+				: (localStorage.setItem('NoTroop', '0'), 0);
 				var savedHD = [];
 				var debugg = [];
 				var LastAttack = 0;
@@ -17975,6 +17979,12 @@
                         hp.fillRect(eu - 0.5 * aJB, ew + bA.qa.yz * fontSize, aJB, Math.max(1, 0.1 * fontSize));*/
                     }
                     function aJ6(hp, aB, fontSize, aJ0, aJ1, aJ2) {
+						if(NoTroop===1){
+							if (!(aB < aD.kA && ag.a3I[aB] !== 2)) {
+								return
+							}
+						}
+					
                         var aJC = bA.rZ.zF(ag.gp[aB]);
                         if ((aJ2 >> 1) & 1) {
                             hp.lineWidth = 0.05 * fontSize;
@@ -22048,6 +22058,12 @@
 						
 						
 						aN8.qR(new sF()); //line
+						aN8.qR(new rz({
+							value: NoTroop
+						}, "NoTroop", function(value) {
+							NoTroop = value;                      // 0 or 1
+							localStorage.setItem('NoTroop', value.toString());
+						}));
 						aN8.qR(new rz({
 							value: Density
 						}, "Density", function(value) {
