@@ -9198,10 +9198,7 @@
                         this.a03 = 0;
                         this.a0F = 0;
                         this.zq = 0;
-                        ay.a4V(randomSeed
-						  ? (aD.data.spawningSeed = Math.floor(16384 * Math.random()))
-						  : this.data.spawningSeed
-						);
+                        ay.a4V(this.data.spawningSeed);
                         ae.dd();
                         ag.dd();
                         an.dd();
@@ -13211,7 +13208,7 @@
                     var aAl;
                     this.dd = function() {
                         aAj = aAk = 0;
-                        aAe = new Array(8);
+                        aAe = new Array(10);
                         aAe[0] = L(112);
                         aAe[1] = aD.kU ? L(113) : L(114);
                         aAe[2] = L(115);
@@ -13220,6 +13217,8 @@
                         aAe[5] = L(118, 0, S[102]);
                         aAe[6] = L(119);
                         aAe[7] = L(120);
+						aAe[8] = "Seed"
+						aAe[9] = "LastAttack"
                         aAf = new Array(aAe.length);
                         aAf.fill("");
                         aAg = new Array(aAe.length);
@@ -13232,6 +13231,8 @@
                         aAg[6] = 0;
                         aAm();
                         aAg[7] = 0;
+						aAg[8] = 0;
+						aAg[9] = 0;
                         aAi = aAn(6);
                         aAh = new Array(aAe.length);
                         aAh.fill(true);
@@ -13341,6 +13342,10 @@
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
                         } else if (aB === 5) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
+                        } else if (aB === 8) {
+                            return aD.data.spawningSeed;
+                        } else if (aB === 9) {
+                            return LastAttack;
                         } else if (aB < 7) {
                             return bA.rZ.zF(aAg[aB]);
                         } else {
@@ -21921,6 +21926,7 @@
                     }
                     function aPH() {
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
+						aD.data.spawningSeed = randomSeed ? (aD.data.spawningSeed = Math.floor(16384 * Math.random())) : spawningSeed
                         aD.data.isReplay = 0;
                         aPL();
                         aD.a4P.a4r();
