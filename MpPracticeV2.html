@@ -13216,9 +13216,10 @@
                         aAe[4] = L(117);
                         aAe[5] = L(118, 0, S[102]);
                         aAe[6] = L(119);
-                        aAe[7] = L(120);
-						aAe[8] = "Seed"
-						aAe[9] = "LastAttack"
+                        
+						aAe[7] = "Seed"
+						aAe[8] = "LastAttack"
+						aAe[9] = L(120);
                         aAf = new Array(aAe.length);
                         aAf.fill("");
                         aAg = new Array(aAe.length);
@@ -13342,18 +13343,18 @@
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
                         } else if (aB === 5) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
-                        } else if (aB === 8) {
+                        } else if (aB === 7) {
                             return aD.data.spawningSeed;
-                        } else if (aB === 9) {
+                        } else if (aB === 8) {
                             return LastAttack;
                         } else if (aB < 7) {
                             return bA.rZ.zF(aAg[aB]);
                         } else {
-                            return aW.aAs(aAg[7]);
+                            return aW.aAs(aAg[9]);
                         }
                     }
                     this.a4x = function() {
-                        return aAg[7];
+                        return aAg[9];
                     }
                     ;
                     this.aAs = function(value) {
@@ -13365,6 +13366,7 @@
                         return l3 + ":" + en;
                     }
                     ;
+					var BeforeAttack = 0;
                     this.j3 = function() {
                         aAt();
                         aAu();
@@ -13374,6 +13376,10 @@
                         aAw();
                         aAx();
                         aAy();
+						if(BeforeAttack !== LastAttack){
+						aAp();
+						BeforeAttack = LastAttack;
+						}
                     }
                     ;
                     function aAt() {
@@ -13471,8 +13477,8 @@
                         aAd++;
                     }
                     function aAw() {
-                        aAg[7] += bf.aB5;
-                        var qH = aAn(7);
+                        aAg[9] += bf.aB5;
+                        var qH = aAn(9);
                         if (aAi !== qH) {
                             aAi = qH;
                             aAd += 100;
