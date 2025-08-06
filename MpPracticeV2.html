@@ -13216,10 +13216,9 @@
                         aAe[4] = L(117);
                         aAe[5] = L(118, 0, S[102]);
                         aAe[6] = L(119);
-                        
-						aAe[7] = "Seed"
-						aAe[8] = "LastAttack"
-						aAe[9] = L(120);
+                        aAe[7] = L(120);
+						aAe[8] = "Seed"
+						aAe[9] = "LastAttack"
                         aAf = new Array(aAe.length);
                         aAf.fill("");
                         aAg = new Array(aAe.length);
@@ -13343,9 +13342,9 @@
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
                         } else if (aB === 5) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
-                        } else if (aB === 7) {
-                            return aD.data.spawningSeed;
                         } else if (aB === 8) {
+                            return aD.data.spawningSeed;
+                        } else if (aB === 9) {
                             return LastAttack;
                         } else if (aB < 7) {
                             return bA.rZ.zF(aAg[aB]);
