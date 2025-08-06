@@ -52,6 +52,17 @@
 				var savedHD = [];
 				var debugg = [];
 				var LastAttack = 0;
+				var PercentATK = 0;
+				var LastSample = -1;
+				function expansionRate(land) {
+				  if (land < 1000)      return 4;
+				  else if (land < 10000)     return 3;
+				  else if (land < 60000)     return 2;
+				  else if (land < 160000)    return 1;
+				  else if (land < 300000)    return 0.5;
+				  else if (land >= 300000)    return 1/3;
+				  return 4;
+				}
                 var S = ["div", "100%", "⬅️ ", "absolute", "canvas", "none", "inherit", "rgb(", "rgba(", "auto", "center", "<br>", "0.75em", "   ", "span", "hidden", "flex", "1em", "Data", "0.8em", " / ", "territorial.io", "input", "iVBORw0KGgoAAAANSUhEUgAAADAAAAAKAQMAAADILU8PAAAABlBMVEUAAAD///+l2Z/dAAAAOklEQVQI12P48efPH5v/DEDyT81/hjMHDhxIkWA4AqV+/PgBpf5JgOWA1B0gdUyC4cefA3+A1AcwBQAlGyu1reW1ZgAAAABJRU5ErkJggg==", "click", "0.5em", "' target='_blank'>", "undefined", "pre", "</a>", "scroll", "pointer", "password", "middle", "function", "break-word", "bold", "Value", "Escape", "Enter", "1.5em", "0.6em", "0.4em", "text", "string", "rgba(0,0,0,0.8)", "number", "nowrap", "mouseleave", "inline-block", "focus", "blur", "Space", "Redacted ", "Player ", "NoStack", "<a href='", "50%", "1.2em", "1.0em", "0px", "0.3em", "0.0em 0.9em", " voted with ", "  • ", "   Gold: ", "🚩 Report", "🔄 Reload", "wheel", "underline", "top", "tls7", "sans-serif", "rgba(140,10,10,0.75)", "rgba(100,0,0,0.8)", "rgba(10,140,10,0.75)", "rgba(0,100,0,0.8)", "rgba(0,", "rgb(10,220,10)", "pre-wrap", "placeholder", "mouseover", "mouseout", "long", "logo", "loading", "keydown", "italic ", "file", "error", "en-US", "data:image/png;base64,", "break-all", "blur(4px)", "arena", "account", "accept", "_blank", "[Redacted Message]", "Seed", "Reload", "Patreon", "Interest", "Bot ", "Battle Royale", "Back", "Arial Black, sans-serif", "@room", "1v1", "1.4em", "1 Minute", "1 Hour", "1 Day", "000", "0.4em 0em", "0.2em", ". Duration: x", ",0,0.85)", " solid white;}", " Rank: ", " / 160", " -> "];
                 function a() {
                     var b;
@@ -13215,7 +13226,7 @@
                         aAe[3] = L(116);
                         aAe[4] = L(117);
                         aAe[5] = L(118, 0, S[102]);
-                        aAe[6] = L(119);
+                        aAe[6] = "Slider";
                         
 						aAe[7] = "Seed"
 						aAe[8] = "LastAttack"
@@ -13335,12 +13346,29 @@
                         }
                     }
                     function aAn(aB) {
+						var MapLand = ap.a6k;
+						var TotalPlayers = al.kB;
+						var PlayerID = aD.eX;
+						var SliderVal = aR.hH();
+						var Tick = bf.k7();
+						var Land = ag.gb[PlayerID];
+						var Troops = ag.gp[PlayerID];
+
+						var SampleSize = ((LastSample+100)%100) > Tick%100 ? 10 : 100;
                         if (aB < 3) {
                             return aAg[aB].toString();
                         } else if (aB === 3) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
                         } else if (aB === 4) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
+                        } else if (aB === 6) {
+							//PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops+Land*(Tick%100/100))*100*(Tick - LastSample)+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
+                            let expanson = (Math.min((100-Tick%100)/((((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)),1)+1)/(1+1)
+							PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops)*100*(Tick - LastSample)*expanson+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
+							LastSample = Tick;
+
+							(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
+							return bA.rZ.a3z(PercentATK, (PercentATK < 10 ? 1 : 0));
                         } else if (aB === 5) {
                             return bA.rZ.a3z(aAg[aB] / 100, 2);
                         } else if (aB === 7) {
@@ -13353,6 +13381,16 @@
                             return aW.aAs(aAg[9]);
                         }
                     }
+					function calcPerc() {
+						var PlayerID = aD.eX;
+						var indextotal = aD.ek 
+						var Land = ag.gb;
+						let captureland = 0;
+						for(var aB = indextotal - 1 ; aB >= 0 ; aB-- ){
+							captureland += Land[aB]
+						}
+						return captureland;
+					}
                     this.a4x = function() {
                         return aAg[9];
                     }
@@ -30701,6 +30739,8 @@
                     this.a6r = 0;
 					savedHD = [];
 					LastAttack = 0;
+					PercentATK = 0;
+					LastSample = -1;
                     this.dd = function() {
                         this.aG1 = 0;
                         this.aZa = [];
@@ -30989,6 +31029,8 @@
                 function aZt() {
 				savedHD = []
 				LastAttack = 0;
+				PercentATK = 0;
+				LastSample = -1;
                     var e8 = 0;
                     var eM = bf.eM;
                     this.aZY = 0;
