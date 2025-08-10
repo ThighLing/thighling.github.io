@@ -31,11 +31,11 @@
             "use strict";
             (function() {
 				var randomSeed = localStorage.getItem('randomSeed') !== null
-				? (parseInt(localStorage.getItem('randomSeed'), 10) || 1)
+				? (parseInt(localStorage.getItem('randomSeed'), 10) || 0)
 				: (localStorage.setItem('randomSeed', '1'), 1);
 				
 				var randomMapSeed = localStorage.getItem('randomMapSeed') !== null
-				? (parseInt(localStorage.getItem('randomMapSeed'), 10) || 1)
+				? (parseInt(localStorage.getItem('randomMapSeed'), 10) || 0)
 				: (localStorage.setItem('randomMapSeed', '1'), 1);
 				
 				var MpMode = localStorage.getItem('MpMode') !== null
@@ -47,7 +47,7 @@
 				: (localStorage.setItem('Delay', '0'), 3);
 				
 				var Density = localStorage.getItem('Density') !== null
-				? (parseInt(localStorage.getItem('Density'), 10) || 1)
+				? (parseInt(localStorage.getItem('Density'), 10) || 0)
 				: (localStorage.setItem('Density', '1'), 1);
 				
 				var NoTroop = localStorage.getItem('NoTroop') !== null
