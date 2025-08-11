@@ -53,6 +53,11 @@
 				var NoTroop = localStorage.getItem('NoTroop') !== null
 				? (parseInt(localStorage.getItem('NoTroop'), 10) || 0)
 				: (localStorage.setItem('NoTroop', '0'), 0);
+				
+				var BotAttacks = localStorage.getItem('BotAttacks') !== null
+				? (parseInt(localStorage.getItem('BotAttacks'), 10) || 0)
+				: (localStorage.setItem('BotAttacks', '1'), 1);
+				
 				var savedHD = [];
 				var debugg = [];
 				var LastAttack = 0;
@@ -1751,6 +1756,9 @@
                         k4(player, hW, ao.it.jd(player), jr);
                     }
                     function k4(player, hW, jJ, jr) {
+						if(BotAttacks===0&& jJ === aD.eX){
+							return
+						}
                         if (jr >= 3 && jr < 6 && bL.du(ag.gp[player], 8) > ag.gp[jJ]) {
                             hW = Math.max(bL.du(11 * ag.gp[jJ], 5), bL.du(ag.gp[player], 10));
                         }
@@ -22055,9 +22063,13 @@
                             aPX();
                         }
                         ));
-						
-						
 						aN8.qR(new sF()); //line
+						aN8.qR(new rz({
+							value: BotAttacks
+						}, "BotAttacks", function(value) {
+							BotAttacks = value;                      // 0 or 1
+							localStorage.setItem('BotAttacks', value.toString());
+						}));
 						aN8.qR(new rz({
 							value: NoTroop
 						}, "NoTroop", function(value) {
