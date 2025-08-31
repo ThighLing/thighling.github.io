@@ -30,7 +30,7 @@
         <script>
             "use strict";
             (function() {
-				var LastAttack = -1;
+				var LastAttack = -Infinity;
 				var NewAttack = 0;
 				var Delay = Infinity
                 var S = ["div", "100%", "⬅️ ", "absolute", "canvas", "none", "inherit", "rgb(", "<br>", "rgba(", "auto", "center", "0.75em", "   ", "span", "hidden", "flex", "1em", "Data", "0.8em", "0.5em", " / ", "territorial.io", "input", "iVBORw0KGgoAAAANSUhEUgAAADAAAAAKAQMAAADILU8PAAAABlBMVEUAAAD///+l2Z/dAAAAOklEQVQI12P48efPH5v/DEDyT81/hjMHDhxIkWA4AqV+/PgBpf5JgOWA1B0gdUyC4cefA3+A1AcwBQAlGyu1reW1ZgAAAABJRU5ErkJggg==", "click", "' target='_blank'>", "undefined", "pre", "</a>", "underline", "scroll", "pointer", "password", "middle", "function", "break-word", "bold", "Value", "Escape", "Enter", "1.5em", "0.6em", "0.4em", "text", "string", "rgba(0,0,0,0.8)", "number", "nowrap", "mouseleave", "inline-block", "focus", "blur", "Space", "Redacted ", "Player ", "NoStack", "<a href='", "50%", "1.2em", "1.0em", "0px", "0.3em", "0.0em 0.9em", " voted with ", "  • ", "   Gold: ", "🚩 Report", "🔄 Reload", "wheel", "top", "tls7", "sans-serif", "rgba(140,10,10,0.75)", "rgba(100,0,0,0.8)", "rgba(10,140,10,0.75)", "rgba(0,100,0,0.8)", "rgba(0,", "rgb(10,220,10)", "pre-wrap", "placeholder", "mouseover", "mouseout", "long", "logo", "loading", "keydown", "italic ", "file", "error", "en-US", "dotted", "data:image/png;base64,", "break-all", "blur(4px)", "arena", "account", "accept", "_blank", "[Redacted Message]", "Seed", "Reload", "Patreon", "Interest", "Bot ", "Battle Royale", "Back", "Arial Black, sans-serif", "@room", "1v1", "1.4em", "1 Minute", "1 Hour", "1 Day", "000", "0.4em 0em", "0.2em", ". Duration: x", ",0,0.85)", " solid white;}", " Rank: ", " / 160", " -> "];
@@ -2959,7 +2959,7 @@
                         if (aD.kU) {
                             b8.p0.hK(aD.eX, iN, jJ);
                         } else {
-							if(NewAttack >LastAttack){
+							if(NewAttack>LastAttack|| Tick-25>LastAttack){
                             b0.p5.p7(iN, jJ);
 							LastAttack = Tick;
 							}
@@ -8674,6 +8674,12 @@
                         return Math.max(fF, 0);
                     }
                     ;
+					document.addEventListener('keydown', (e) => {
+						if (e.key === 'q') {
+							Delay = Infinity;
+						
+						}
+					});
                     this.mI = function(player, iN, a3g, a3h) {
                         var a3d = ag.gp[player];
                         var hW = bL.du(a3d * (iN + 1), 1024);
@@ -31014,7 +31020,7 @@
                     this.aaC = null;
                     this.aaD = 7;
                     this.a73 = 0;
-					LastAttack = -1;
+					LastAttack = -Infinity;
 					NewAttack = 0;
 					Delay = Infinity
                     this.dd = function() {
@@ -31303,7 +31309,7 @@
                     ;
                 }
                 function aaV() {
-					LastAttack = -1;
+					LastAttack = -Infinity;
 					NewAttack = 0;
 					Delay = Infinity
                     var e8 = 0;
