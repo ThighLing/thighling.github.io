@@ -2959,7 +2959,7 @@
                         if (aD.kU) {
                             b8.p0.hK(aD.eX, iN, jJ);
                         } else {
-							if(NewAttack>LastAttack|| Tick-25>LastAttack){
+							if(NewAttack-7>LastAttack|| (Tick-21>LastAttack&&!(NewAttack-7>LastAttack))){
                             b0.p5.p7(iN, jJ);
 							LastAttack = Tick;
 							}
@@ -8682,7 +8682,7 @@
 					});
                     this.mI = function(player, iN, a3g, a3h) {
                         var a3d = ag.gp[player];
-                        var hW = bL.du(a3d * (iN + 1), 1024);
+                        var hW = bL.du(a3d * (0 + 1), 1024);
                         var a3i = bL.du(a3g * a3d, 1024);
                         hW = Math.min(hW, a3d - a3i);
                         if (aD.kS === 10) {
