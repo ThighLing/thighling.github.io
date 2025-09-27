@@ -48,20 +48,33 @@
 				
 				var Density = localStorage.getItem('Density') !== null
 				? (parseInt(localStorage.getItem('Density'), 10) || 0)
-				: (localStorage.setItem('Density', '1'), 1);
+				: (localStorage.setItem('Density', '1'), 0);
 				
 				var NoTroop = localStorage.getItem('NoTroop') !== null
 				? (parseInt(localStorage.getItem('NoTroop'), 10) || 0)
 				: (localStorage.setItem('NoTroop', '0'), 0);
 				
-				var BotAttacks = localStorage.getItem('BotAttacks') !== null
-				? (parseInt(localStorage.getItem('BotAttacks'), 10) || 0)
-				: (localStorage.setItem('BotAttacks', '1'), 1);
+				var NoBotAttacks = localStorage.getItem('NoBotAttacks') !== null
+				? (parseInt(localStorage.getItem('NoBotAttacks'), 10) || 0)
+				: (localStorage.setItem('NoBotAttacks', '1'), 0);
+				
+				var Pause50 = localStorage.getItem('Pause50') !== null
+				? (parseInt(localStorage.getItem('Pause50'), 10) || 0)
+				: (localStorage.setItem('Pause50', '1'), 0);
+				
+				var Pause112 = localStorage.getItem('Pause112') !== null
+				? (parseInt(localStorage.getItem('Pause112'), 10) || 0)
+				: (localStorage.setItem('Pause112', '1'), 0);
+				
+				var Pause137 = localStorage.getItem('Pause137') !== null
+				? (parseInt(localStorage.getItem('Pause137'), 10) || 0)
+				: (localStorage.setItem('Pause137', '1'), 0);
 				
 				var savedHD = [];
 				var debugg = [];
 				var LastAttack = 0;
 				var PercentATK = 0;
+				var PercentDiff = 0;
 				var LastSample = -1;
 				function expansionRate(land) {
 				  if (land < 1000)      return 4;
@@ -1766,7 +1779,7 @@
 						let BotAttacking = player;
 						let TroopsAttacking = hW;
 						let PlayerID = aD.eX;
-						if(BotAttacks===0&& PlayerAttacked === PlayerID){
+						if(NoBotAttacks===1&& PlayerAttacked === PlayerID){
 							return
 						}
                         if (jr >= 3 && jr < 6 && bL.du(ag.gp[player], 8) > ag.gp[jJ]) {
@@ -6336,7 +6349,7 @@
                         return true;
                     }
                 }
-                function yC() {
+                function yC() {//ui
                     at.yD();
                     uk.setTransform(hy, 0, 0, hy, 0, 0);
                     uk.imageSmoothingEnabled = hy < 3;
@@ -6367,7 +6380,7 @@
                     aL.uj();
                     aX.uj();
                     be.uj();
-                    av.uj();
+                    //av.uj();
                     t.uj();
                 }
                 function yI(yJ, i, j) {
@@ -10119,6 +10132,13 @@
                         bf.dl = true;
                     }
                     ;
+					/*aM.pause
+					this.pause = function() {
+					
+					
+					
+					
+					}*/
                     this.a5u = function() {
                         if ((aD.kU || aD.gw) && aD.a09 === 1) {
                             aV.mV(true);
@@ -10185,6 +10205,11 @@
                                 t.u(1, 0);
                                 return true;
                             }
+							if (l7 === 3) {//<--- 
+                                aD.aPj(); //Generate new map
+								aM.a2E(); //Keep pause menu
+                                return true;
+                            }
                             return true;
                         }
                         if (l7 === 9) {
@@ -10208,6 +10233,11 @@
                             if (lQ >= aR.ew - j - a5q * bc.gap) {
                                 return 2;
                             }
+
+							if (lQ >= aR.ew - 2 * (j + a5q * bc.gap)) {//New Seed
+								return 3;   
+							}
+
                         } else if (lP <= 7 * j + bc.gap && lQ >= aR.ew - j - a5q * bc.gap) {
                             return 1;
                         }
@@ -10255,6 +10285,7 @@
                     }
                     function a5y() {
                         a60(1);
+						a6b1(2)
                     }
                     function a60(aB) {
                         uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
@@ -10270,6 +10301,21 @@
                         uk.fillRect(4 * j, 0, 1, j);
                         uk.fillRect(0, j - 1, 4 * j, 1);
                         uk.fillText(aB === 0 ? L(42) : L(43), 2 * j, 0.54 * j);
+                    }
+					function a6b1(aB) {
+                        uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
+                        uk.fillStyle = bB.nf;
+                        uk.fillRect(0, 0, 4 * j, j);
+                        if (a5p === aB + 1) {
+                            uk.fillStyle = bB.nk;
+                            uk.fillRect(0, 0, 4 * j, j);
+                        }
+                        uk.fillStyle = bB.nj;
+                        uk.fillRect(0, 0, 4 * j, 1);
+                        uk.fillRect(0, 0, 1, j);
+                        uk.fillRect(4 * j, 0, 1, j);
+                        uk.fillRect(0, j - 1, 4 * j, 1);
+                        uk.fillText("New Seed", 2 * j, 0.54 * j);
                     }
                     this.a5z = function(eu, ew, en) {
                         uk.setTransform(1, 0, 0, 1, eu, ew);
@@ -12856,12 +12902,12 @@
                         yJ.font = a9o;
                         yJ.fillStyle = f8 === 9 ? bB.op : bB.nj;
                         var a9z = ae.aA0;
-                        var aA1 = "+" + a9z;
+                        var aA1 = Math.floor(bf.k7()/10)%10;
                         var sy = yJ.measureText(aA1).width;
                         var aA2 = Math.floor(this.j / 12);
                         var n9 = 0.5 * (i + sx) + aA2;
                         if (n9 + sy + a9n <= i) {
-                            yJ.fillText(aA1, Math.floor(n9 + 0.5 * sy), Math.floor(0.3 * this.j));
+                            yJ.fillText(aA1, Math.floor(i*0.945), Math.floor(0.3 * this.j));
                         } else if (a9z >= 1000) {
                             aA1 = "+" + Math.floor(a9z / 1000) + "K";
                             sy = yJ.measureText(aA1).width;
@@ -13319,10 +13365,10 @@
                         aB1 = aB2 = 0;
                         aAw = new Array(10);
                         aAw[0] = L(108);
-                        aAw[1] = aD.kU ? L(109) : L(110);
+                        aAw[1] = "Land";
                         aAw[2] = L(111);
                         aAw[3] = L(112);
-                        aAw[4] = L(113);
+                        aAw[4] = "Troops";
                         aAw[5] = L(114, 0, S[104]);
 						aAw[6] = "Slider";
 						aAw[7] = "Seed"
@@ -13332,10 +13378,10 @@
                         aAx.fill("");
                         aAy = new Array(aAw.length);
                         aAy[0] = aD.kU ? 0 : aD.kA;
-                        aAy[1] = aD.kU ? al.kg : aD.kW;
+                        aAy[1] = 12;
                         aAy[2] = aD.a0B;
                         aAy[3] = 0;
-                        aAy[4] = bL.du(10000 * ag.gb[0], Math.max(aD.ju, 1));
+                        aAy[4] = 0;
                         aAy[5] = (aD.data.iIncomeType === 0 ? 700 : aD.data.iIncomeType === 1 ? bL.du(aD.data.iIncomeValue * 700, 64) : bL.du(aD.data.iIncomeData[aD.eX] * 700, 64));
                         aAy[6] = 0;
                         aB4();
@@ -13382,9 +13428,12 @@
                         this.a4Q();
                         this.a8N();
                         aU.a8N();
-                        aB7();
+                        aB7(); 
                     }
                     ;
+					this.updateboard = function() {
+					 aB7(); 
+					}
                     function aB6(a5o, i) {
                         for (var aB = 0; aB < aAx.length; aB++) {
                             aAx[aB] = bA.yJ.a39(aAw[aB], a5o, i);
@@ -13443,6 +13492,10 @@
                         }
                     }
                     function aB5(aB) {
+				    var f88 = bd.mf;
+					var Income = f88[8] + f88[9] + f88[10] + f88[11]
+					var Expenses = f88[12] + f88[13] + f88[14] + f88[15]
+					var TotalTroops = Income-Expenses;
 						var MapLand = ap.a6w;
 						var TotalPlayers = al.kg;
 						var PlayerID = aD.eX;
@@ -13451,7 +13504,7 @@
 						var Land = ag.gb[PlayerID];
 						var Troops = Math.max(ag.gp[PlayerID],1);
 
-						var SampleSize = ((LastSample+100)%100) > Tick%100 ? 10 : 100;
+						var SampleSize = ((LastSample+100)%100) > Tick%100 ? 50 : 50;
 						
                         if (aB < 3) {
                             return aAy[aB].toString();
@@ -13459,14 +13512,19 @@
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 6) {
 							//PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops+Land*(Tick%100/100))*100*(Tick - LastSample)+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
-                            let expanson = (Math.min((100-Tick%100)/((((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)),1)+1)/(1+1)
-							PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops)*100*(Tick - LastSample)*expanson+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
+                            var extra = 1;
+							let expanson = (Math.min((100-Tick%100)/((((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)),1)+extra)/(1+extra)
+							//var landPercentage = Land*((LastSample+100)%100)/100
+							var NonAverPercent = (((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops)*100*expanson
+							PercentATK= bL.hv((NonAverPercent*(Tick - LastSample)+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
+							PercentDiff = (NonAverPercent*(Tick - LastSample)-PercentATK+PercentDiff*SampleSize)/(SampleSize+(Tick - LastSample));
+							var LookAheadPercent = bL.hv(PercentATK+ PercentDiff,0,100)
 							LastSample = Tick;
-
-							(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
-							return bA.ra.a4B(PercentATK, (PercentATK < 10 ? 1 : 0));
+                            
+							//(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
+							return bA.ra.a4B(LookAheadPercent, (LookAheadPercent < 10 ? 1 : 0));
                         } else if (aB === 4) {
-                            return bA.ra.a4B(aAy[aB] / 100, 2);
+                            return TotalTroops;
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
@@ -13532,7 +13590,7 @@
                         if (al.kg - aAy[0] === aAy[1]) {
                             return;
                         }
-                        aAy[1] = al.kg - aAy[0];
+                        aAy[1] = bd.mf[7]//al.kg - aAy[0];
                         aAv++;
                     }
                     this.mN = function() {
@@ -22249,7 +22307,7 @@
                     var aOA;
                     var aOB;
                     function qu() {
-                        aOA = new uU("🔧 " + L(292),[new w(S[2] + L(37),aOD), new w(L(293),aPj)]);
+                        aOA = new uU("🔧 " + L(292),[new w(S[2] + L(37),aOD), new w(L(293),aD.aPj)]);
                         aPk();
                         aOB = new qU(aOA.ua,aOE());
                     }
@@ -22302,7 +22360,7 @@
                         b9.pv.dd();
                         bj.s3.s4(156, b9.a4s.zb());
                     }
-                    function aPj() {
+                    aD.aPj = function () {
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
 						aD.data.spawningSeed = randomSeed ? (aD.data.spawningSeed = Math.floor(16384 * Math.random())) : aD.data.spawningSeed
                         aD.data.isReplay = 0;
@@ -22382,10 +22440,10 @@
 						
 						aNX.qS(new sG()); //line
 						aNX.qS(new s0({
-							value: BotAttacks
-						}, "BotAttacks", function(value) {
-							BotAttacks = value;                      // 0 or 1
-							localStorage.setItem('BotAttacks', value.toString());
+							value: NoBotAttacks
+						}, "NoBotAttacks", function(value) {
+							NoBotAttacks = value;                      // 0 or 1
+							localStorage.setItem('NoBotAttacks', value.toString());
 						}));
 						aNX.qS(new s0({
 							value: NoTroop
@@ -22415,8 +22473,26 @@
 							localStorage.setItem('Delay', Delay.toString());
                         }
                         ));
+						aNX.qS(new sG()); //line
+						aNX.qS(new s0({
+							value: Pause50
+						}, "Pause50", function(value) {
+							Pause50 = value;                      // 0 or 1
+							localStorage.setItem('Pause50', value.toString());
+						}));
+						aNX.qS(new s0({
+							value: Pause112
+						}, "Pause112", function(value) {
+							Pause112 = value;                      // 0 or 1
+							localStorage.setItem('Pause112', value.toString());
+						}));
 						
-						
+						aNX.qS(new s0({
+							value: Pause137
+						}, "Pause137", function(value) {
+							Pause137 = value;                      // 0 or 1
+							localStorage.setItem('Pause137', value.toString());
+						}));
 						
 						
 						
@@ -31095,6 +31171,7 @@
 					savedHD = [];
 					LastAttack = 0;
 					PercentATK = 0;
+					PercentDiff = 0;
 					LastSample = -1;
                     this.dd = function() {
                         this.aGQ = 0;
@@ -31385,6 +31462,7 @@
 					savedHD = [];
 					LastAttack = 0;
 					PercentATK = 0;
+					PercentDiff = 0;
 					LastSample = -1;
                     var e8 = 0;
                     var eM = bf.eM;
@@ -31455,6 +31533,21 @@
                     }
                     ;
                     this.j3 = function() {
+					let Tick = bf.k7();
+					aW.updateboard();
+					if( (1748 ===Tick&&Pause137)){
+					
+					 aM.a2E();
+					}
+					if(( 1298 === Tick&&Pause112)){
+					
+					 aM.a2E();
+					}
+					if(( 898 ===Tick&&Pause50)){
+					
+					     aM.a2E();
+					}
+					
                         this.a0I.aa2++;
 						b8.hD.executeSavedHD();
                     }
