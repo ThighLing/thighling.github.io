@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Click Target Fade (Draggable UI)</title>
+  <!-- Include Chart.js from a CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; background:#000; color:#fff; font-family: system-ui, sans-serif; }
+    #wrap { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    canvas { display:block; width:100%; height:100%; cursor: crosshair; }
+    #hud { 
+      position: absolute; 
+      top: 8px; 
+      right: 10px; 
+      font-size: 32px; 
+      color:#fff; 
+      pointer-events: none; /* Click-through by default */
+      user-select: none; /* Prevent text selection */
+      -webkit-user-select: none;
+    }
+    #uiBar { position:absolute; top:8px; left:10px; display:none; background: rgba(40,40,40,0.8); padding: 10px; border-radius: 5px; color: #fff; }
+    #saveBtn { padding: 6px 8px; background:#e5e5e5; color:#000; border:1px solid #999; border-radius: 2px; cursor:pointer; margin-bottom: 10px; }
+    #saveBtn:active { transform: translateY(1px); }
+    #note { position:absolute; bottom:8px; left:10px; font-size:12px; opacity:.7; }
+    #chartContainer { width: 400px; height: 200px; }
+    .slider-container { display: flex; align-items: center; margin-top: 10px; }
+    .slider-container label { margin-right: 10px; }
+    .slider-container input[type="range"] { flex-grow: 1; }
+    .slider-container #timeLabel { margin-left: 10px; min-width: 30px; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="hud"><span id="cp">0.0000</span></div>
+    <div id="uiBar">
+      <button id="saveBtn">Save data</button>
+      <div id="chartContainer">
+        <canvas id="pointsChart"></canvas>
+      </div>
+      <div class="slider-container">
+        <label for="timeSlider">Time:</label>
+        <input type="range" id="timeSlider" min="0" max="7" value="1" step="1">
+        <span id="timeLabel">30s</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======= Config from user spec =======
+    const a = 3;
+    let b = 30;
+    const CutoffPoint = 25;
+    let PointsLeft = 0;
+    const Decay = 0.95;
+    const ReleaseFraction = 0.9;
+    const Weight = 1 / (Math.pow(Decay, 1/3) + 1);
+
+    // ======= DOM & Canvas setup =======
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const hud = document.getElementById('hud');
+    const cpEl = document.getElementById('cp');
+    const uiBar = document.getElementById('uiBar');
+    const saveBtn = document.getElementById('saveBtn');
+    const timeSlider = document.getElementById('timeSlider');
+    const timeLabel = document.getElementById('timeLabel');
+
+    let dpr = Math.max(1, window.devicePixelRatio || 1);
+    let isWindowFocused = false;
+    let isReadyForClick = false;
+
+    // ======= Target state =======
+    let target = { x: 0, y: 0, relX: 0.5, relY: 0.5, spawnedMs: 0 };
+    let csvRows = [];
+
+    // ======= Scoring loop & Chart state =======
+    let CurrPoints = 0;
+    let PrevPoints = 0;
+    let LastMs = performance.now();
+    let pointsChart;
+    const chartData = { labels: [], data: [] };
+    const FPS_ESTIMATE = 60;
+    const timeOptions = [15, 30, 45, 60, 120, 180, 240, 300];
+    const timeLabels = ['15s', '30s', '45s', '1m', '2m', '3m', '4m', '5m'];
+    let maxChartPoints = timeOptions[1] * FPS_ESTIMATE;
+
+    const horizontalLinePlugin = {
+      id: 'horizontalLine',
+      afterDraw: chart => {
+        if (chart.tooltip?._active?.length) {
+          const ctx = chart.ctx, activePoint = chart.tooltip._active[0], y = activePoint.element.y, yAxis = chart.scales.y, chartArea = chart.chartArea;
+          ctx.save();
+          ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y);
+          ctx.lineWidth = 1; ctx.strokeStyle = 'yellow'; ctx.stroke();
+          const value = yAxis.getValueForPixel(y), label = value.toFixed(4);
+          ctx.font = '12px sans-serif'; const textMetrics = ctx.measureText(label);
+          const textX = chartArea.left + 5, textY = chartArea.top + 5;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(textX, textY, textMetrics.width + 4, 16);
+          ctx.fillStyle = 'yellow'; ctx.fillText(label, textX + 2, textY + 8);
+          ctx.restore();
+        }
+      }
+    };
+
+    function initializeChart() {
+      const chartCtx = document.getElementById('pointsChart').getContext('2d');
+      pointsChart = new Chart(chartCtx, {
+        type: 'line', data: { labels: chartData.labels, datasets: [{ data: chartData.data, borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, tension: 0.4 }] },
+        options: { animation: { duration: 0 }, scales: { y: { ticks: { color: '#fff' } }, x: { display: false } }, plugins: { legend: { display: false }, tooltip: { enabled: true, displayColors: false } }, interaction: { mode: 'index', intersect: false } },
+        plugins: [horizontalLinePlugin]
+      });
+    }
+
+    // ======= Web Worker =======
+    let drawWorker = null;
+    function createWorker() {
+      const workerCode = `
+            let blobTemplate = null, templateW = 0, templateH = 0, canvasW = 0, canvasH = 0;
+            function generateTemplate(w, h, a, b) {
+                canvasW = w; canvasH = h; templateW = w * 2; templateH = h * 2;
+                blobTemplate = new Uint8ClampedArray(templateW * templateH * 4);
+                const maxDistSq = w*w + h*h; const distLut = new Uint8Array(maxDistSq + 1);
+                for (let i = 0; i <= maxDistSq; i++) { distLut[i] = Math.max(0, Math.min(255, Math.round(255 / (Math.pow(Math.sqrt(i) / b, a) + 1)))); }
+                const centerX = w, centerY = h;
+                for (let y = 0; y < h; y++) {
+                    const dySq = y * y;
+                    for (let x = 0; x < w; x++) {
+                        const v = distLut[x*x + dySq];
+                        const idx = ((centerY + y) * templateW + (centerX + x)) * 4;
+                        blobTemplate[idx]=blobTemplate[idx+1]=blobTemplate[idx+2]=v; blobTemplate[idx+3]=255;
+                    }
+                }
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const v = blobTemplate[((centerY + y) * templateW + (centerX + x)) * 4]; let trgIdx;
+                        trgIdx = ((centerY + y) * templateW + (centerX - 1 - x)) * 4; blobTemplate[trgIdx]=blobTemplate[trgIdx+1]=blobTemplate[trgIdx+2]=v; blobTemplate[trgIdx+3]=255;
+                        trgIdx = ((centerY - 1 - y) * templateW + (centerX + x)) * 4; blobTemplate[trgIdx]=blobTemplate[trgIdx+1]=blobTemplate[trgIdx+2]=v; blobTemplate[trgIdx+3]=255;
+                        trgIdx = ((centerY - 1 - y) * templateW + (centerX - 1 - x)) * 4; blobTemplate[trgIdx]=blobTemplate[trgIdx+1]=blobTemplate[trgIdx+2]=v; blobTemplate[trgIdx+3]=255;
+                    }
+                }
+            }
+            function drawFromTemplate(targetX, targetY) {
+                const finalImageData = new ImageData(canvasW, canvasH); const data = finalImageData.data;
+                const startX = canvasW - targetX, startY = canvasH - targetY; const bytesPerRow = canvasW * 4;
+                for (let y = 0; y < canvasH; y++) { data.set(blobTemplate.subarray(((startY + y) * templateW + startX) * 4, ((startY + y) * templateW + startX) * 4 + bytesPerRow), y * bytesPerRow); }
+                return finalImageData;
+            }
+            self.onmessage = e => {
+                const { type, payload } = e.data;
+                if (type === 'generate') {
+                    generateTemplate(payload.w, payload.h, payload.a, payload.b);
+                    self.postMessage({type: 'draw', payload: drawFromTemplate(payload.target.x, payload.target.y)});
+                } else if (type === 'draw' && blobTemplate) {
+                    self.postMessage({type: 'draw', payload: drawFromTemplate(payload.target.x, payload.target.y)});
+                }
+            };
+        `;
+      return new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' })));
+    }
+    
+    function resize() {
+      isReadyForClick = false; dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
+      b = Math.pow((w * h) / 1000, 0.5);
+      if (target.relX) { target.x = Math.floor(target.relX * canvas.width); target.y = Math.floor(target.relY * canvas.height); }
+      
+      // **NEW**: Font scaling
+      const baseRes = 1920 * 1080;
+      const currentRes = w * h;
+      const scaleFactor = Math.pow(currentRes / baseRes, 0.5);
+      hud.style.fontSize = `${32 * scaleFactor}px`;
+
+      generateTemplateAndDraw();
+    }
+    function spawnTarget() {
+      const relX = Math.random(), relY = Math.random();
+      target = { ...target, x: Math.floor(relX * canvas.width), y: Math.floor(relY * canvas.height), relX, relY, spawnedMs: performance.now() };
+    }
+    function drawField() { if (canvas.width > 0 && isReadyForClick) drawWorker.postMessage({ type: 'draw', payload: { target } }); }
+    function generateTemplateAndDraw() { if (canvas.width > 0) drawWorker.postMessage({ type: 'generate', payload: { w: canvas.width, h: canvas.height, a, b, target } }); }
+    
+    function updateLoop(now) {
+      const TimeDiff = (now - LastMs) / 1000;
+      const rfPow = Math.pow(ReleaseFraction, TimeDiff);
+      const ReleasePoints = (1 - rfPow) * PointsLeft;
+      PointsLeft = Math.max(0, PointsLeft - ReleasePoints);
+      const decPow = Math.pow(Decay, TimeDiff);
+      CurrPoints = decPow * (PrevPoints + ReleasePoints * Weight) + (ReleasePoints) * (1 - Weight);
+
+      if (TimeDiff > 0) {
+        const pointspersec = (CurrPoints - PrevPoints) / TimeDiff; let color = '#fff';
+        if (pointspersec > 0.0001) { const v = 1 / (pointspersec + 1); color = `rgb(${Math.round(255 * v)}, 255, ${Math.round(255 * v)})`; } 
+        else if (pointspersec < -0.0001) { const v = 1 / (-pointspersec + 1); color = `rgb(255, ${Math.round(255 * v)}, ${Math.round(255 * v)})`; }
+        cpEl.style.color = color;
+      }
+      cpEl.textContent = CurrPoints.toFixed(4);
+      PrevPoints = CurrPoints; LastMs = now;
+      
+      chartData.labels.push(''); chartData.data.push(CurrPoints);
+      while (chartData.data.length > maxChartPoints) { chartData.labels.shift(); chartData.data.shift(); }
+      if (uiBar.style.display === 'block') { pointsChart.update('none'); }
+
+      requestAnimationFrame(updateLoop);
+    }
+    
+    function handleClick(evt) {
+      if (!isReadyForClick) return; if (!isWindowFocused) { isWindowFocused = true; return; }
+      const rect = canvas.getBoundingClientRect();
+      const clickX = Math.floor((evt.clientX - rect.left) * dpr), clickY = Math.floor((evt.clientY - rect.top) * dpr);
+      const distanceWhenClicked = Math.hypot(clickX - target.x, clickY - target.y);
+      const timeFromLastClick = performance.now() - target.spawnedMs;
+      const contribution = 1 / (Math.pow(distanceWhenClicked / b, a) + 1);
+      const cutoff = 1 - 1 / (CurrPoints / CutoffPoint + 1);
+      PointsLeft = Math.max(0, PointsLeft + contribution * (cutoff + 1) - cutoff);
+      spawnTarget(); drawField();
+      const distanceToNewTarget = Math.hypot(clickX - target.x, clickY - target.y);
+      csvRows.push([Math.round(timeFromLastClick), Math.round(distanceToNewTarget), Math.round(distanceWhenClicked)]);
+    }
+    
+    function saveCSV() {
+      const header = 'time_from_spawn_ms,distance_to_new_target_px,distance_from_click_to_old_target_px\n';
+      const csv = header + csvRows.map(r => r.join(',')).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = `click_data_${new Date().toISOString().replace(/[:.]/g,'-')}.csv`;
+      a.click(); URL.revokeObjectURL(a.href); csvRows = [];
+    }
+    
+    // ======= Events =======
+    window.addEventListener('resize', resize);
+    canvas.addEventListener('click', handleClick);
+    saveBtn.addEventListener('click', saveCSV);
+    window.addEventListener('focus', () => { isWindowFocused = true; });
+    window.addEventListener('blur', () => { isWindowFocused = false; });
+
+    // **NEW**: HUD Dragging Logic
+    let isDragging = false;
+    let dragOffsetX, dragOffsetY;
+    hud.addEventListener('mousedown', e => {
+      if (uiBar.style.display !== 'block') return; // Only allow drag when UI is visible
+      isDragging = true;
+      // Switch from right-based to left-based positioning if needed
+      if (hud.style.right !== 'auto') {
+        hud.style.left = `${hud.offsetLeft}px`;
+        hud.style.right = 'auto';
+      }
+      dragOffsetX = e.clientX - hud.offsetLeft;
+      dragOffsetY = e.clientY - hud.offsetTop;
+      hud.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      hud.style.left = `${e.clientX - dragOffsetX}px`;
+      hud.style.top = `${e.clientY - dragOffsetY}px`;
+    });
+    window.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      hud.style.cursor = 'grab';
+      localStorage.setItem('hudPosition', JSON.stringify({ top: hud.style.top, left: hud.style.left }));
+    });
+
+    window.addEventListener('keydown', e => { 
+      if (e.key === 'Escape') { 
+        const isHidden = uiBar.style.display === 'none' || uiBar.style.display === '';
+        uiBar.style.display = isHidden ? 'block' : 'none';
+        // Toggle HUD interactivity
+        if (isHidden) {
+          hud.style.pointerEvents = 'auto';
+          hud.style.cursor = 'grab';
+        } else {
+          hud.style.pointerEvents = 'none';
+          hud.style.cursor = 'default';
+        }
+      } 
+    });
+    
+    timeSlider.addEventListener('input', e => {
+      const index = parseInt(e.target.value, 10);
+      maxChartPoints = timeOptions[index] * FPS_ESTIMATE;
+      timeLabel.textContent = timeLabels[index];
+      localStorage.setItem('chartTimeSliderIndex', index);
+    });
+
+    // ======= Boot =======
+    drawWorker = createWorker();
+    drawWorker.onmessage = e => { if (e.data.type === 'draw') { ctx.putImageData(e.data.payload, 0, 0); if (!isReadyForClick) isReadyForClick = true; } };
+    
+    const savedSliderIndex = localStorage.getItem('chartTimeSliderIndex');
+    if (savedSliderIndex !== null) {
+      const index = parseInt(savedSliderIndex, 10);
+      timeSlider.value = index;
+      maxChartPoints = timeOptions[index] * FPS_ESTIMATE;
+      timeLabel.textContent = timeLabels[index];
+    }
+    const savedHudPos = localStorage.getItem('hudPosition');
+    if (savedHudPos) {
+      const { top, left } = JSON.parse(savedHudPos);
+      hud.style.top = top;
+      hud.style.left = left;
+      hud.style.right = 'auto';
+    }
+
+    initializeChart();
+    requestAnimationFrame(() => { resize(); spawnTarget(); LastMs = performance.now(); requestAnimationFrame(updateLoop); });
+  </script>
+</body>
+</html>
