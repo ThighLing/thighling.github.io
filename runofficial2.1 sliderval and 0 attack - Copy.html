@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <title>Simulation Spreadsheet</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { margin-bottom: 10px; padding: 6px 12px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; user-select: none; }
+    th { background: #f4f4f4; cursor: move; }
+    th.dragging { background: lightgray; }
+    th.insert-target { border-left: 4px solid green; }
+    td.editable { background: #fff; }
+    td.custom { font-style: italic; }
+    td.selectable { user-select: text; } /* allow text selection for slider cells */
+    pre#debug { margin-top: 20px; max-height: 200px; overflow: auto; background: #f0f0f0; padding: 10px; }
+    #modeBtn.mp { background: #666; color: #fff; }
+    #zeroBtn.zero { background: #444; color: #fff; }
+  </style>
+</head>
+<body>
+  <button id="exportBtn">Export CSV</button>  
+  <button id="modeBtn">SP Mode</button>
+  <button id="zeroBtn">Normal Mode</button>
+
+  <table id="simTable">
+    <thead><tr></tr></thead>
+    <tbody id="simBody"></tbody>
+  </table>
+  <pre id="debug"></pre>
+  <script>
+    const simBody   = document.getElementById('simBody');
+    const headerRow = document.querySelector('#simTable thead tr');
+    const exportBtn = document.getElementById('exportBtn');
+
+    // Persisted store for slider values: key = `${tick}:${index}` -> sliderval
+    let savedSliders = {};
+    try { savedSliders = JSON.parse(localStorage.getItem('savedSliders') || '{}'); } catch {}
+
+    let lastSim = { results: [], logs: [], sliderRecords: [] };
+
+    // ─── 1) Define your columns here ─────────────────────────────
+    const columns = [
+      { key: 'mptick',  label: 'MpTick',  isCustom: true, editable: false, formula: 'ceil(tick/7)*7' },
+
+      { key: 'tick',       label: 'Tick',       editable: true },
+      { key: 'expansions', label: 'Expansions', editable: true },
+      { key: 'helper',  label: 'Helper',  isCustom: true, editable: false, formula: 'IF((tick%100)==0,exp1+min(attackingPrev,1),expLeft+min(attacking1,1))' },
+          
+      { key: 'score',  label: 'Score',  isCustom: true, editable: true, formula: 'land+troops/2' },
+      { key: 'notes',       label: 'Notes',       editable: true },
+      { key: 'land',       label: 'Land' },
+      { key: 'expLeft',   label: 'Exp',        editable: false },
+      { key: 'exp1',     label: 'Exp1', editable: false },
+      { key: 'troops',     label: 'Troops' },
+      { key: 'totaltroops',  label: 'Totaltroops',  isCustom: true, editable: false, formula: 'attacking + troops' },
+      { key: 'attacking',  label: 'Attacking' },
+      { key: 'attacking1',  label: 'Attacking1' },
+
+      /* Slider value (saved, non-editable but selectable) */
+      { key: 'slider', label: 'slider' },
+      /* Slider percentage header with NO SPACE as requested */
+      { key: 'sliderPct', label: 'slider%' },
+
+      { key: 'attackingPrev', label: 'AttackingPrev' },
+      { key: 'interest',   label: 'Interest' },
+      // first custom
+      { key: 'custom',  label: 'Custom',  isCustom: true, editable: true, formula: 'fix(land+(troops+attacking)/2,0)' },
+      // second custom
+      { key: 'custom2', label: 'Custom2', isCustom: true, editable: true, formula: '' }
+    ];
+
+    const nonCustomKeys = columns.filter(col => !col.isCustom).map(col => col.key);
+
+    // List out every helper and derived name
+    const helperNames = [
+      'floor','fix','ceil','ceiling','mod',
+      'IF','min','max',
+      'landexp','landclaim','computeInterestRate'
+    ];
+
+    // ─── 2) Build the <thead> from that array ─────────────────────
+    headerRow.innerHTML = '';
+    columns.forEach(col => {
+      const th = document.createElement('th');
+      th.textContent = col.label;
+      th.dataset.col = col.key;
+      if (col.isCustom) {
+        th.dataset.formula = col.formula;
+        th.dataset.label   = col.label;
+        if (col.editable) {
+          th.dataset.customEditable = 'true';
+          th.contentEditable = false;
+        }
+      }
+      headerRow.appendChild(th);
+    });
+
+    // ─── 3) Build 100 rows via the same array ────────────────────
+    for (let i = 0; i < 100; i++) {
+      const tr = document.createElement('tr');
+      columns.forEach(col => {
+        const td = document.createElement('td');
+        td.dataset.col = col.key;
+
+        if (!col.isCustom && col.editable) {
+          td.classList.add('editable');
+          td.contentEditable = true;
+        }
+        if (col.isCustom) {
+          td.classList.add('custom');
+          td.dataset.formula = col.formula;
+        }
+
+        // slider cells selectable, not editable
+        if (col.key === 'slider' || col.key === 'sliderPct') {
+          td.classList.add('selectable');
+          td.contentEditable = false;
+        }
+
+        // prefill first two
+        if (col.key === 'tick')       td.textContent = i===0?'70':i===1?'90':'';
+        else if (col.key === 'expansions')
+                                      td.textContent = i===0?'4':i===1?'2':'';
+        tr.appendChild(td);
+      });
+      simBody.appendChild(tr);
+    }
+    
+    // ─── MP Mode toggle ──────────────────────────────────────────
+    let mpMode = localStorage.getItem('mpMode') === 'true';
+    const modeBtn = document.getElementById('modeBtn');
+    function updateModeButton() {
+      modeBtn.textContent = mpMode ? 'MP Mode' : 'SP Mode';
+      modeBtn.classList.toggle('mp', mpMode);
+    }
+    updateModeButton();
+    modeBtn.addEventListener('click', () => {
+      mpMode = !mpMode;
+      localStorage.setItem('mpMode', mpMode);
+      updateModeButton();
+      recalc(); // re-run simulation
+    });
+
+    // ─── 0% Mode toggle ──────────────────────────────────────────
+    let zeroMode = localStorage.getItem('zeroMode') === 'true';
+    const zeroBtn = document.getElementById('zeroBtn');
+    function updateZeroButton() {
+      zeroBtn.textContent = zeroMode ? '0% Mode' : 'Normal Mode';
+      zeroBtn.classList.toggle('zero', zeroMode);
+    }
+    updateZeroButton();
+    zeroBtn.addEventListener('click', () => {
+      zeroMode = !zeroMode;
+      localStorage.setItem('zeroMode', zeroMode);
+      updateZeroButton();
+      recalc();
+    });
+
+    // ─── Helpers & rounding ──────────────────────────────────────
+    function landexp(i){ return i*4; }
+    function landclaim(l,e){ return (l+((e+1)/2)*4)*e; }
+    function computeInterestRate(t,land,troops){
+      const base=Math.floor(((13440 - (t-1)*6)*100+0.5)/1920);
+      const mod=Math.max(Math.min(((troops/land-100)*2)/100,1),0);
+      return Math.floor(base-Math.floor(base*mod));
+    }
+    function floor(x){return Math.floor(x);}
+    function fix(x,n){return Number(x.toFixed(n));}
+    function ceil(x){ return Math.ceil(x); }
+    const ceiling = ceil;
+    function mod(a, b){ return a % b; }
+    function IF(cond, ifTrue, ifFalse){ return cond ? ifTrue : ifFalse; }
+    function min(...args){ return Math.min(...args)}
+    function max(...args){ return Math.max(...args)}
+
+    // ─── Simulation logic (unchanged; only capture & persist slider) ─
+    function runSimulation() {
+      const rows = Array.from(simBody.rows);
+      const ticks = rows.map(r => {
+        const c = r.querySelector('td[data-col="tick"]');
+        return parseInt(c.textContent) || null;
+      });
+      const exps = rows.map(r => {
+        const c = r.querySelector('td[data-col="expansions"]');
+        return parseInt(c.textContent) || 0;
+      });
+
+      // if MP mode is on, snap every attack tick up to the next multiple of 7
+      const usedTicks = ticks.map(t =>
+        t ? (mpMode ? Math.ceil(t / 7) * 7 : t)
+          : null
+      );
+
+      const events = usedTicks
+        .map((t, i) => ({ t, e: exps[i], i })) // keep original row index i
+        .filter(ev => ev.t && ev.e)
+        .sort((a, b) => a.t - b.t);
+
+      const rawMax = Math.max(...ticks.filter(t => t));
+      const lastEventTick = events.length ? events[events.length - 1].t : 0;
+      const maxTick = Math.max(rawMax, lastEventTick);
+
+      let lookup = 0, timer = 0, totalExp = 0, addExp = 0;
+      let atk = 0, troops = 512, land = 12, level = 2;
+      let startatk = 0;
+
+      const results = ticks.map(() => ({ land:null, troops:null, attacking:null, interest:null }));
+      const logs = [];
+      const sliderRecords = []; // for debug panel only
+      let pendingSlider = null; // {tick,index} of the row that queued addExp
+
+      function expansionspeed(){
+        if(land<1000)        return 4;
+        else if(land<10000)  return 3;
+        else if(land<60000)  return 2;
+        else if(land<160000) return 1;
+        else if(land<300000) return 0;
+        else                 return -1;
+      }
+
+      for (let tick = 1; tick <= maxTick; tick++) {
+        // handle queued expansions send — NO gameplay change
+        if (addExp > 0) {
+          if (atk === 0 && startatk === 0) { 
+            timer = 7; 
+            startatk = 1;
+          }
+
+          // compute the slider value already used
+          let sliderval;
+          if (zeroMode && addExp === 1 && startatk === 1 && atk === 0 && totalExp == 0) {
+            sliderval = 1;
+          } else {
+            const avg  = landclaim(landexp(level), addExp + totalExp);
+            const cost = avg * 2;
+            const need = cost + landexp(level) + (addExp + totalExp) * 4;
+            const send = need - atk;
+            sliderval = Math.max(Math.ceil((send/troops)*1024),1);
+          }
+
+          // record & persist against the originating row+effective tick
+          if (pendingSlider) {
+            const key = `${pendingSlider.tick}:${pendingSlider.index}`;
+            savedSliders[key] = sliderval;                 // persist in-memory (and saved in saveState)
+            sliderRecords.push({ tick: pendingSlider.tick, index: pendingSlider.index, value: sliderval });
+            pendingSlider = null;
+          }
+
+          const slidertroops = Math.floor(sliderval/1024*troops);
+          const tax = Math.floor((troops + 0.5) * 3 / 256);
+          if (slidertroops + tax <= troops) {
+            atk += slidertroops;
+            troops -= slidertroops + tax;
+            totalExp += addExp;
+          }
+          addExp = 0;
+        }
+
+        // interest ticks
+        if (tick % 10 === 0) {
+          const rate = computeInterestRate(tick, land, troops);
+          let changetroops = Math.max(Math.floor(Math.floor(troops + 0.5) * rate / 10000), 1);
+          if (tick % 100 === 0) changetroops += land;
+          troops += Math.min(changetroops, Math.max(land*150-troops,0));
+        }
+
+        // resolve attack / expansion
+        if (timer <= 0 && (atk > 0 || (startatk === 1&&totalExp == 1))) {
+          for(let repeat = timer; repeat <=0; repeat++){
+            if (totalExp > 0 && (atk >= landexp(level) * 3 || (startatk === 1&&totalExp == 1))) {
+              if ((startatk === 1&&totalExp == 1)) {
+                const need = landexp(level + 1) * 3;
+                let send = need - atk;
+                if (send > 0) {
+                  const take = Math.min(send, Math.max(troops, 0));
+                  atk += take;
+                  troops -= take;
+                }
+              }
+              timer = expansionspeed();
+              land += landexp(level + 1);
+              atk  -= landexp(level + 1) * 2;
+              level++; 
+              totalExp--;
+            } else {
+              troops += atk; 
+              atk = 0; 
+              totalExp = 0;
+            }
+            startatk = 0;
+          }
+        }
+
+        if (atk > 0||(startatk === 1&&totalExp == 1)) timer--;
+
+        // queue today's event at END of loop (unchanged)
+        if (lookup < events.length && events[lookup].t === tick) {
+          addExp = events[lookup].e; 
+          pendingSlider = { tick, index: events[lookup].i }; // remember initiator
+          lookup++;
+        }
+
+        // snapshot for rows at raw tick
+        ticks.forEach((t, i) => {
+          if (t === tick) {
+            results[i] = { land, troops, attacking:atk, interest:computeInterestRate(tick,land,troops) };
+          }
+        });
+        logs.push({ tick, land, troops, attacking:atk, addExp, totalExp, level, timer });
+      }
+
+      lastSim = { results, logs, sliderRecords };
+      return lastSim;
+    }
+
+    // ─── Recalc & render ──────────────────────────────────────────
+    function recalc(){
+      // sort rows
+      Array.from(simBody.rows)
+        .sort((a,b)=>{
+          const ta=+a.querySelector('td[data-col="tick"]').textContent||Infinity;
+          const tb=+b.querySelector('td[data-col="tick"]').textContent||Infinity;
+          return ta-tb;
+        })
+        .forEach(r=>simBody.appendChild(r));
+
+      const sim = runSimulation();
+
+      simBody.querySelectorAll('tr').forEach((tr,i)=>{
+        const d = sim.results[i]||{};
+
+        // compute effective tick for this row
+        const tickVal      = +tr.querySelector('td[data-col="tick"]').textContent || 0;
+        const effectiveTick = mpMode ? Math.ceil(tickVal/7)*7 : tickVal;
+
+        // fill Exp/Exp1/AttackingPrev/Attacking1 as before
+        const logEntry = lastSim.logs.find(l => l.tick === effectiveTick);
+        tr.querySelector('td[data-col="expLeft"]').textContent =
+          logEntry ? logEntry.totalExp : '';
+
+        const rawLog = lastSim.logs.find(l => l.tick === (tickVal-1)) || {};
+        tr.querySelector('td[data-col="exp1"]').textContent =
+          rawLog.totalExp != null ? rawLog.totalExp : '';
+
+        const prevLog = lastSim.logs.find(l => l.tick === (tickVal - 1)) || {};
+        tr.querySelector('td[data-col="attackingPrev"]').textContent =
+          (prevLog.attacking != null) ? prevLog.attacking : '';
+
+        tr.querySelector('td[data-col="attacking1"]').textContent =
+          logEntry ? logEntry.attacking : '';
+
+        // NEW: Only show/keep slider values if this row actually has expansions > 0
+        const expText = tr.querySelector('td[data-col="expansions"]').textContent.trim();
+        const expVal = parseInt(expText, 10) || 0;
+
+        const key = `${effectiveTick}:${i}`;
+        const sliderVal = expVal > 0 ? savedSliders[key] : undefined;
+
+        // slider cell
+        const sliderCell = tr.querySelector('td[data-col="slider"]');
+        if (sliderCell) sliderCell.textContent = (expVal > 0 && sliderVal != null) ? sliderVal : '';
+
+        // slider% cell
+        const sliderPctCell = tr.querySelector('td[data-col="sliderPct"]');
+        if (sliderPctCell) {
+          if (expVal > 0 && sliderVal != null) {
+            const pct = (sliderVal / 1024) * 100;
+            sliderPctCell.textContent = (Math.round(pct * 100) / 100).toString();
+          } else {
+            sliderPctCell.textContent = '';
+          }
+        }
+
+        // If there is no expansion on this row now, purge any stale saved value
+        if (expVal <= 0 && savedSliders[key] != null) {
+          delete savedSliders[key];
+        }
+
+        // land/troops/attacking/interest
+        ['land','troops','attacking','interest'].forEach(col=>{
+          tr.querySelector(`td[data-col="${col}"]`).textContent =
+            d[col]!=null ? d[col] : '';
+        });
+
+        // compute each custom column (unchanged)
+        columns.filter(c => c.isCustom).forEach(c => {
+          const td = tr.querySelector(`td[data-col="${c.key}"]`);
+          const tickVal = +tr.querySelector('td[data-col="tick"]').textContent || 0;
+          if (!tickVal || td.matches(':focus')) {
+            td.textContent = '';
+            return;
+          }
+
+          const argNames = nonCustomKeys.concat(helperNames, ['expLeft','exp1','attacking1']);
+          const argVals  = argNames.map(name => {
+            if (nonCustomKeys.includes(name)) {
+              const txt = tr.querySelector(`td[data-col="${name}"]`).textContent;
+              return txt === '' ? null : +txt;
+            }
+            switch(name) {
+              case 'floor': return floor;
+              case 'fix':   return fix;
+              case 'ceil':  return ceil;
+              case 'ceiling': return ceiling;
+              case 'mod':   return mod;
+              case 'IF':    return IF;
+              case 'min':   return min;
+              case 'max':   return max;
+              case 'landexp': return landexp;
+              case 'landclaim': return landclaim;
+              case 'computeInterestRate': return computeInterestRate;
+              case 'expLeft': {
+                const le = tr.querySelector('td[data-col="expLeft"]').textContent;
+                return le === '' ? null : +le;
+              }
+              case 'exp1': {
+                const e1 = tr.querySelector('td[data-col="exp1"]').textContent;
+                return e1 === '' ? null : +e1;
+              }
+              case 'attacking1': {
+                const a1 = tr.querySelector('td[data-col="attacking1"]').textContent;
+                return a1 === '' ? null : +a1;
+              }
+            }
+          });
+
+          const fEl = headerRow.querySelector(`th[data-col="${c.key}"]`);
+          const f = (fEl && fEl.dataset.formula ? fEl.dataset.formula.trim() : '');
+          if (!f) { td.textContent = ''; return; }
+
+          try {
+            const fn = new Function(...argNames, 'return ' + f);
+            const v  = fn(...argVals);
+            td.textContent = isNaN(v) ? 'Error' : v;
+          } catch {
+            td.textContent = 'Error';
+          }
+        });
+      });
+
+      // debug shows logs and persisted sliders
+      document.getElementById('debug').textContent =
+        JSON.stringify({ logs: lastSim.logs, savedSliders }, null, 2);
+
+      saveState(); // also persists savedSliders
+    }
+
+    // ─── Editable-handling & formula‐editing on any custom <th> ───
+    simBody.addEventListener('keydown',e=>{
+      if(e.target.classList.contains('editable') && e.key==='Enter'){
+        e.preventDefault(); e.target.blur();
+      }
+    });
+    simBody.addEventListener('focusout',e=>{
+      if(e.target.classList.contains('editable')) recalc();
+    });
+
+    // inline‐edit for every <th> that has data-formula
+    headerRow
+      .querySelectorAll('th[data-formula][data-custom-editable="true"]')
+      .forEach(th => {
+        th.dataset.label = th.textContent;
+        th.contentEditable = false;
+        th.addEventListener('dblclick', () => {
+          th.contentEditable = true;
+          th.textContent = th.dataset.formula;
+          th.focus();
+        });
+        th.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); th.blur(); }
+        });
+        th.addEventListener('blur', () => {
+          const newF = th.textContent.trim();
+          th.dataset.formula = newF;
+          th.textContent = th.dataset.label;
+          th.contentEditable = false;
+          simBody.querySelectorAll(`td[data-col="${th.dataset.col}"]`)
+            .forEach(td => td.dataset.formula = newF);
+          recalc();
+        });
+      });
+
+    // ─── Export CSV (unchanged) ────────────────────────────────────
+    exportBtn.addEventListener('click',()=>{
+      recalc();
+      const logs = lastSim.logs||[], maxTick=logs.length?logs[logs.length-1].tick:0;
+      const threshold=Math.floor(maxTick/100+1)*100;
+      let csv = 'Tick,Land,Troops,Attacking,AddExp,TotalExp,Level,Timer\n';
+      for(let t=1;t<=threshold;t++){
+        const e=logs.find(l=>l.tick===t)||{};
+        csv += `${t},${e.land||''},${e.troops||''},${e.attacking||''},${e.addExp||''},${e.totalExp||''},${e.level||''},${e.timer||''}\n`;
+      }
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download='simulation.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ─── Column–drag & drop reordering ────────────────────────────
+    let dragTh = null, startX = 0, isDragging = false, insertIdx = null;
+
+    headerRow.addEventListener('mousedown', e => {
+      if (document.activeElement.isContentEditable) return;
+      if (e.target.tagName !== 'TH') return;
+      dragTh = e.target;
+      startX = e.clientX;
+      isDragging = false;
+      window.getSelection().removeAllRanges();
+      e.preventDefault();
+    });
+
+    headerRow.addEventListener('mousemove', e => {
+      if (!dragTh) return;
+      if (!isDragging && Math.abs(e.clientX - startX) > 5) {
+        isDragging = true;
+        dragTh.classList.add('dragging');
+      }
+      if (!isDragging) return;
+
+      Array.from(headerRow.children).forEach(th => th.classList.remove('insert-target'));
+
+      const ths = Array.from(headerRow.children);
+      insertIdx = null;
+
+      for (let i = 0; i < ths.length; i++) {
+        const th = ths[i];
+        if (th === dragTh) continue;
+        const rect = th.getBoundingClientRect();
+        if (e.clientX < rect.left + rect.width / 2) {
+          th.classList.add('insert-target');
+          insertIdx = i;
+          break;
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      Array.from(headerRow.children).forEach(th => th.classList.remove('insert-target'));
+
+      if (dragTh && isDragging) {
+        const ths  = Array.from(headerRow.children);
+        const from = ths.indexOf(dragTh);
+        const to   = insertIdx != null ? insertIdx : ths.length;
+        if (from !== to) {
+          [headerRow, ...simBody.rows].forEach(tr => {
+            const cells = Array.from(tr.children);
+            const cell  = cells.splice(from, 1)[0];
+            cells.splice(to > from ? to - 1 : to, 0, cell);
+            tr.innerHTML = '';
+            cells.forEach(c => tr.appendChild(c));
+          });
+          saveState();
+        }
+      }
+
+      if (dragTh) dragTh.classList.remove('dragging');
+      if (isDragging) window.getSelection().removeAllRanges();
+      dragTh = null; isDragging = false; insertIdx = null;
+    });
+
+    // ─── Persist + init ───────────────────────────────────────────
+    function loadState(){
+      const raw = localStorage.getItem('simState');
+      if (!raw) { recalc(); return; }
+      const { columnOrder, headerFormulas, rows, savedSliders: saved } = JSON.parse(raw) || {};
+
+      // restore saved sliders
+      if (saved && typeof saved === 'object') savedSliders = saved;
+
+      // a) restore header formulas
+      headerRow
+        .querySelectorAll('th[data-formula][data-custom-editable="true"]')
+        .forEach(th => {
+          const f = headerFormulas?.[th.dataset.col];
+          if (f) th.dataset.formula = f;
+        });
+
+      // b) restore tick/exp values
+      (rows || []).forEach((rowData, i) => {
+        const tr = simBody.rows[i];
+        if (!tr) return;
+        const tCell = tr.querySelector('td[data-col="tick"]');
+        const eCell = tr.querySelector('td[data-col="expansions"]');
+        if (tCell) tCell.textContent = rowData.tick       || '';
+        if (eCell) eCell.textContent = rowData.expansions || '';
+      });
+
+      // c) restore column order (and include any new columns at end)
+      if (Array.isArray(columnOrder)) {
+        const oldThs = Array.from(headerRow.children);
+        const mapTh  = Object.fromEntries(oldThs.map(th => [th.dataset.col, th]));
+        headerRow.innerHTML = '';
+
+        columnOrder.forEach(key => { if (mapTh[key]) headerRow.appendChild(mapTh[key]); });
+        columns.forEach(col => { if (!columnOrder.includes(col.key) && mapTh[col.key]) headerRow.appendChild(mapTh[col.key]); });
+
+        simBody.querySelectorAll('tr').forEach(tr => {
+          const oldTds = Array.from(tr.children);
+          const newTds = [];
+          columnOrder.forEach(key => {
+            const idx = oldThs.findIndex(th => th.dataset.col === key);
+            if (idx >= 0) newTds.push(oldTds[idx]);
+          });
+          columns.forEach(col => {
+            if (!columnOrder.includes(col.key)) {
+              const idx = oldThs.findIndex(th => th.dataset.col === col.key);
+              if (idx >= 0) newTds.push(oldTds[idx]);
+            }
+          });
+          tr.innerHTML = '';
+          newTds.forEach(td => tr.appendChild(td));
+        });
+      }
+
+      recalc();
+    }
+
+    // ─── 4) saveState (adds savedSliders) ────────────────────────
+    function saveState(){
+      const columnOrder = Array.from(headerRow.children).map(th=>th.dataset.col);
+      const headerFormulas = {};
+      headerRow
+        .querySelectorAll('th[data-formula][data-custom-editable="true"]')
+        .forEach(th => { headerFormulas[th.dataset.col] = th.dataset.formula; });
+      const rows = [];
+      Array.from(simBody.rows).forEach(tr=>{
+        const r = {};
+        r.tick       = tr.querySelector('td[data-col="tick"]').textContent;
+        r.expansions = tr.querySelector('td[data-col="expansions"]').textContent;
+        rows.push(r);
+      });
+
+      localStorage.setItem('savedSliders', JSON.stringify(savedSliders));
+      localStorage.setItem('simState', JSON.stringify({ columnOrder, headerFormulas, rows, savedSliders }));
+    }
+
+    loadState();
+  </script>
+</body>
+</html>
