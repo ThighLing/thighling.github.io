@@ -13541,9 +13541,11 @@
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
 						     var setword = randomSeed ? "Random" : "Set";
+							 
                             return setword+ " " + aD.data.spawningSeed;
                         } else if (aB === 8) {
-                            return TotalPauses+" "+LastAttack;
+							var setword2 = NoBotAttacks ? "NoAtk" : "";
+                            return setword2 + " "+ TotalPauses+" "+LastAttack;
                         } else if (aB < 7) {
                             return bA.ra.zQ(aAy[aB]);
                         } else {
