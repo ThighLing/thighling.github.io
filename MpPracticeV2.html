@@ -13512,6 +13512,10 @@
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 6) {
 							//PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops+Land*(Tick%100/100))*100*(Tick - LastSample)+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
+							
+							
+							
+							/*
                             var extra = 1;
 							let expanson = (Math.min((100-Tick%100)/((((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)),1)+extra)/(1+extra)
 							//var landPercentage = Land*((LastSample+100)%100)/100
@@ -13520,15 +13524,21 @@
 							PercentDiff = (NonAverPercent*(Tick - LastSample)-PercentATK+PercentDiff*SampleSize)/(SampleSize+(Tick - LastSample));
 							var LookAheadPercent = bL.hv(PercentATK+ PercentDiff,0,100)
 							LastSample = Tick;
-                            
+                            Return bA.ra.a4B(LookAheadPercent, (LookAheadPercent < 10 ? 1 : 0));
+							
+							
+							*/
 							//(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
-							return bA.ra.a4B(LookAheadPercent, (LookAheadPercent < 10 ? 1 : 0));
+							
+							var MakePercentage = bL.hv((CalcLand()/Troops*2.5)*100,0,100) //(((calcPerc()-Land+1)/TotalPlayers)*3.5)
+							return bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0));
                         } else if (aB === 4) {
                             return TotalTroops;
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
-                            return aD.data.spawningSeed;
+						     var setword = randomSeed ? "Random" : "Set";
+                            return setword+ " " + aD.data.spawningSeed;
                         } else if (aB === 8) {
                             return LastAttack;
                         } else if (aB < 7) {
@@ -13537,6 +13547,18 @@
                             return Tick+" "+aW.aBA(aAy[9]);
                         }
                     }
+					function CalcLand() {
+						var totalLand = calcPerc()
+						var samples = 0
+						var Land = ag.gb;
+						var captureland = 0
+						for(var aB = aD.ek - 1 ; aB >= 1 ; aB-- ){
+							captureland += Land[aB]*(Land[aB] / totalLand)**2
+							samples += (Land[aB] / totalLand)**2
+						}
+						var FinalOne = captureland/samples
+						return FinalOne;
+					}
 					function calcPerc() {
 						var PlayerID = aD.eX;
 						var indextotal = aD.ek;
