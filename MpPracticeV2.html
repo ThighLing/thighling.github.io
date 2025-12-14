@@ -30,6 +30,7 @@
         <script>
             "use strict";
             (function() {
+				
 				var randomSeed = localStorage.getItem('randomSeed') !== null
 				? (parseInt(localStorage.getItem('randomSeed'), 10) || 0)
 				: (localStorage.setItem('randomSeed', '1'), 1);
@@ -72,6 +73,7 @@
 				
 				var savedHD = [];
 				var debugg = [];
+				var TotalPauses = 0;
 				var LastAttack = 0;
 				var PercentATK = 0;
 				var PercentDiff = 0;
@@ -10117,6 +10119,7 @@
                         yJ.setTransform(1, 0, 0, 1, 0, 0);
                     }
                     this.a2E = function() {
+						TotalPauses++
                         this.gx = !this.gx;
                         if (!this.gx) {
                             a5p = -1;
@@ -13540,7 +13543,7 @@
 						     var setword = randomSeed ? "Random" : "Set";
                             return setword+ " " + aD.data.spawningSeed;
                         } else if (aB === 8) {
-                            return LastAttack;
+                            return TotalPauses+" "+LastAttack;
                         } else if (aB < 7) {
                             return bA.ra.zQ(aAy[aB]);
                         } else {
@@ -31192,6 +31195,7 @@
                     this.a73 = 0;
 					savedHD = [];
 					LastAttack = 0;
+					TotalPauses = 0;
 					PercentATK = 0;
 					PercentDiff = 0;
 					LastSample = -1;
@@ -31486,6 +31490,7 @@
 					PercentATK = 0;
 					PercentDiff = 0;
 					LastSample = -1;
+					TotalPauses = 0;
                     var e8 = 0;
                     var eM = bf.eM;
                     this.aa2 = 0;
