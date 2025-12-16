@@ -59,6 +59,10 @@
 				? (parseInt(localStorage.getItem('NoBotAttacks'), 10) || 0)
 				: (localStorage.setItem('NoBotAttacks', '1'), 0);
 				
+				var NoBotName = localStorage.getItem('NoBotName') !== null
+				? (parseInt(localStorage.getItem('NoBotName'), 10) || 0)
+				: (localStorage.setItem('NoBotName', '1'), 0);
+				
 				var Pause50 = localStorage.getItem('Pause50') !== null
 				? (parseInt(localStorage.getItem('Pause50'), 10) || 0)
 				: (localStorage.setItem('Pause50', '1'), 0);
@@ -18237,18 +18241,25 @@
                         if (aB < aD.kA && ag.a3T[aB] !== 2) {
                             hp.fillText(ag.yc[aB], eu, ew);
                         }else{
-						if(Density===1){
-						oldFill = hp.fillStyle;
-						let r = 255;
-						let g = 0;
-						let b = 0;
-						hp.fillStyle = "rgb(" + r + ", " + g + ", " + b + ")";
-						hp.fillText((Troops/Land).toFixed(1), eu, ew);
-						hp.fillStyle = oldFill;
+							if (!NoBotName){
+								hp.fillText(ag.yc[aB], eu, ew);
+								var aJZ = fontSize / aIn[aB];
+								hp.fillRect(eu - 0.5 * aJZ, ew + bA.qb.zA * fontSize, aJZ, Math.max(1, 0.1 * fontSize));
+							}else{
+								if(Density===1){
+									oldFill = hp.fillStyle;
+									let r = 255;
+									let g = 0;
+									let b = 0;
+									hp.fillStyle = "rgb(" + r + ", " + g + ", " + b + ")";
+									hp.fillText((Troops/Land).toFixed(1), eu, ew);
+									hp.fillStyle = oldFill;
+								}
+							}
+							
+							
 						}
-						}
-                        //var aJZ = fontSize / aIn[aB];
-                        //hp.fillRect(eu - 0.5 * aJZ, ew + bA.qb.zA * fontSize, aJZ, Math.max(1, 0.1 * fontSize));
+                        
                     }
                     function aJU(hp, aB, fontSize, aJO, aJP, aJQ) {
 						if(NoTroop===1){
@@ -22471,6 +22482,12 @@
 						}, "NoBotAttacks", function(value) {
 							NoBotAttacks = value;                      // 0 or 1
 							localStorage.setItem('NoBotAttacks', value.toString());
+						}));
+						aNX.qS(new s0({
+							value: NoBotName
+						}, "NoBotName", function(value) {
+							NoBotName = value;                      // 0 or 1
+							localStorage.setItem('NoBotName', value.toString());
 						}));
 						aNX.qS(new s0({
 							value: NoTroop
