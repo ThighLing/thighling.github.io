@@ -13514,7 +13514,8 @@
 						var SampleSize = ((LastSample+100)%100) > Tick%100 ? 50 : 50;
 						
                         if (aB < 3) {
-                            return aAy[aB].toString();
+						var Occupation = bA.ra.a4B(Math.floor((Land+0.5) /MapLand*10000) / 100, 2);
+                            return Occupation +" "+aAy[aB].toString();
                         } else if (aB === 3) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 6) {
@@ -13540,6 +13541,7 @@
 							var MakePercentage = bL.hv((CalcLand()/Troops*2.5)*100,0,100) //(((calcPerc()-Land+1)/TotalPlayers)*3.5)
 							return bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0));
                         } else if (aB === 4) {
+						
                             return TotalTroops;
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
