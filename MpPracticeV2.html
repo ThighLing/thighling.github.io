@@ -16891,10 +16891,11 @@
                     }
                     ;
                     function aGy(jQ, nR) {
-					var aB = jQ+SecondSeed
+					var enableMPseed = 0
+					var aB = jQ+SecondSeed*enableMPseed
 				
 					var oncesave = 0;
-                        for (var aBBB = (jQ+SecondSeed); aBBB < (nR+SecondSeed); aBBB++) {
+                        for (var aBBB = (jQ+SecondSeed*enableMPseed); aBBB < (nR+SecondSeed*enableMPseed); aBBB++) {
 						if (aBBB <= (nR)){
 								oncesave = ay.GETaU4()
 							
@@ -16903,7 +16904,7 @@
                             aGk[aB] = 4 * bL.du(64 * ay.random(), ay.value(100));
                             aGl[aB] = 4 * bL.du(64 * ay.random(), ay.value(100));
 							
-							if (aBBB < (nR+SecondSeed)){
+							if (aBBB < (nR+SecondSeed*enableMPseed)){
 								aB = (aB-jQ+1)%(nR-jQ)+jQ
 							}
                         }
