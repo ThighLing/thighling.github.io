@@ -13430,7 +13430,7 @@
                         aAw[3] = L(112);
                         aAw[4] = "Troops";
                         aAw[5] = L(114, 0, S[104]);
-						aAw[6] = "Slider";
+						aAw[6] = randomSeed ?"Pace": "Slider" ;
 						aAw[7] = "Seed"
 						aAw[8] = "LastAttack"
 						aAw[9] = L(116);
@@ -13592,7 +13592,9 @@
 							//(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
 							
 							var MakePercentage = bL.hv((CalcLand()/Troops*2.5)*100,0,100) //(((calcPerc()-Land+1)/TotalPlayers)*3.5)
-							return bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0));
+
+							var setword3 = randomSeed ? "WIP" : bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0))
+							return setword3;
                         } else if (aB === 4) {
 						
                             return TotalTroops;
@@ -13600,8 +13602,8 @@
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
 						     var setword = randomSeed ? (RandomSecond ===0 ?"R": "R+" ): "S";
-							 
-                            return setword+ " " + aD.data.spawningSeed+" | "+SecondSeed;
+							 var setword2 = (RandomSecond ===0 ?"": " | "+SecondSeed )
+                            return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
 							var setword2 = NoBotAttacks ? "NoAtk" : "";
                             return setword2 + " "+ TotalPauses+" "+LastAttack;
