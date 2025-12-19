@@ -30,7 +30,8 @@
         <script>
             "use strict";
             (function() {
-				
+				const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
+
 				var randomSeed = localStorage.getItem('randomSeed') !== null
 				? (parseInt(localStorage.getItem('randomSeed'), 10) || 0)
 				: (localStorage.setItem('randomSeed', '1'), 1);
@@ -46,6 +47,10 @@
 				var MpMode = localStorage.getItem('MpMode') !== null
 				? (parseInt(localStorage.getItem('MpMode'), 10) || 0)
 				: (localStorage.setItem('MpMode', '0'), 0);
+				
+				var Pace = localStorage.getItem('Pace') !== null
+				? (parseInt(localStorage.getItem('Pace'), 10) || 0)
+				: (localStorage.setItem('Pace', '0'), 250);
 				
 				var Delay = localStorage.getItem('Delay') !== null
 				? (parseInt(localStorage.getItem('Delay'), 10) || 3)
@@ -13592,9 +13597,14 @@
 							//(((calcPerc()-Land+1)/TotalPlayers)**0.5)*expansionRate(Land)
 							
 							var MakePercentage = bL.hv((CalcLand()/Troops*2.5)*100,0,100) //(((calcPerc()-Land+1)/TotalPlayers)*3.5)
-
-							var setword3 = randomSeed ? "WIP" : bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0))
-							return setword3;
+								var statword = Math.floor(Land+((TotalTroops+(Land*((Tick/100)%1-0.5)))/4))
+								var pacewordLand = (Math.log(MapLand/statword)/Math.log((Pace/1000)+1)+1)
+								var pacewordTroops = Math.log(MapLand/Land)/Math.log((Pace/1000)/3+1)
+								//var paceword = (statword > MapLand) ? pacewordTroops : pacewordLand
+								//var paceweight = clamp((Land/MapLand -1/(Pace/1000+1))/(1-1/(Pace/1000+1)),0,1)
+								var paceword =  pacewordLand//*(1-paceweight)+ pacewordTroops*paceweight
+							var setword3 = randomSeed ? "" : " "+ bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0))
+							return statword+" "+Math.ceil((paceword)*100+Tick)+setword3;
                         } else if (aB === 4) {
 						
                             return TotalTroops;
@@ -24690,6 +24700,7 @@
                     function aOH(qW) {
                         var aNX = new qE();
                         aNX.qH(S[101]);
+						
                         aNX.qS(new rP({
                             e8: -1,
                             value: aD.data.spawningSeed
@@ -24707,6 +24718,17 @@
                             var eSecondSeed = bL.hv(Math.floor(e.target.value), 0, 511); 
 							e.target.value = SecondSeed = eSecondSeed;
 							localStorage.setItem('SecondSeed', SecondSeed.toString());
+                        }
+                        ));
+						aNX.qS(new sG());
+						aNX.qH("Pace");
+						aNX.qS(new rP({
+							e8: -1,
+                           value: Pace
+                        },1,0,function(e) {
+                            var ePace = bL.hv(Math.floor(e.target.value), 0, 511); 
+							e.target.value = Pace = ePace;
+							localStorage.setItem('Pace', Pace.toString());
                         }
                         ));
                     }
