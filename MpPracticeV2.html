@@ -58,7 +58,7 @@
 				
 				var SecondSeed = localStorage.getItem('SecondSeed') !== null
 				? (parseInt(localStorage.getItem('SecondSeed'), 10) || 0)
-				: (localStorage.setItem('SecondSeed', '0'), 0);
+				: (localStorage.setItem('SecondSeed', '1'), 0);
 				
 				
 				var Density = localStorage.getItem('Density') !== null
@@ -92,6 +92,7 @@
 				var Pause137 = localStorage.getItem('Pause137') !== null
 				? (parseInt(localStorage.getItem('Pause137'), 10) || 0)
 				: (localStorage.setItem('Pause137', '1'), 0);
+				var VersionNumber = 1
 				var firstclick = 0
 				var savedHD = [];
 				var debugg = [];
@@ -13612,7 +13613,7 @@
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
 						     var setword = randomSeed ? (RandomSecond ===0 ?"R": "R+" ): "S";
-							 var setword2 = (RandomSecond ===0 ?"": " | "+SecondSeed )
+							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 ?"": " | "+SecondSeed )
                             return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
 							var setword2 = NoBotAttacks ? "NoAtk" : "";
@@ -27333,6 +27334,14 @@
                             return false;
                         }
                         var aUM = bH.pj(12);
+						if (aUM ===15){
+						VersionNumber = 1
+						aUM-= VersionNumber
+						
+						}else{
+						VersionNumber = 0
+						}
+						
                         if (aUM !== l.rVersion) {
                             var r = "Incompatible Version   Required: " + l.rVersion;
                             r += "   Found: " + aUM;
@@ -27411,6 +27420,9 @@
                         qT.botDifficultyData = i6.aUR(10, 4, 512);
                         qT.spawningType = i6.pj(2);
                         qT.spawningSeed = i6.pj(14);
+						if(VersionNumber === 1){
+						SecondSeed = i6.pj(14);
+						}else {SecondSeed =0}
                         qT.spawningData = i6.aUR(11, 12, 1024);
                         qT.selectableSpawn = i6.pj(1);
                         qT.playerNamesType = i6.pj(2);
@@ -27516,7 +27528,7 @@
                         var qT = aD.data;
                         var i = bE;
                         i.dd();
-                        i.a8(12, l.rVersion);
+                        i.a8(12, l.rVersion+1);
                         i.e8 += 12 + 31;
                         i.a8(2, qT.mapType);
                         i.a8(8, qT.mapProceduralIndex);
@@ -27549,6 +27561,7 @@
                         i.dk(qT.botDifficultyData, 10, 4);
                         i.a8(2, qT.spawningType);
                         i.a8(14, qT.spawningSeed);
+						i.a8(14, SecondSeed);
                         i.dk(qT.spawningData, 11, 12);
                         i.a8(1, qT.selectableSpawn);
                         i.a8(2, qT.playerNamesType);
