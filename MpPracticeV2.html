@@ -96,6 +96,7 @@
 				var Pause137 = localStorage.getItem('Pause137') !== null
 				? (parseInt(localStorage.getItem('Pause137'), 10) || 0)
 				: (localStorage.setItem('Pause137', '1'), 0);
+				RandomSecond = FilteredSeed? 1:RandomSecond
 				var VersionNumber = 1
 				var firstclick = 0
 				var savedHD = [];
@@ -24679,11 +24680,15 @@
 						aNX.qS(new s0({
 							value: FilteredSeed
 							
-						}, "Filtered Seed", function(value,RandomSecond) {
+						}, "Filtered Seed", function(value) {
 							
 							FilteredSeed = value;                      // 0 or 1
 							localStorage.setItem('FilteredSeed', value.toString())
 							
+							if(FilteredSeed){
+							RandomSecond = 1;                     
+
+							}
 						}));
 						
 						
