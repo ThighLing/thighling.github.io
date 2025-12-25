@@ -96,7 +96,7 @@
 				var Pause137 = localStorage.getItem('Pause137') !== null
 				? (parseInt(localStorage.getItem('Pause137'), 10) || 0)
 				: (localStorage.setItem('Pause137', '1'), 0);
-				RandomSecond = FilteredSeed? 1:RandomSecond
+
 				var VersionNumber = 1
 				var firstclick = 0
 				var savedHD = [];
@@ -13621,7 +13621,7 @@
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
-						     var setword = randomSeed ? (FilteredSeed ===0 ?"R": "F" )+(RandomSecond ===0 ?"": "+" ): "S";
+						     var setword = randomSeed ? (FilteredSeed ?"F": "R" )+((RandomSecond||FilteredSeed)  ?"+": "" ): "S";
 							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 ?"": " | "+SecondSeed )
                             return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
@@ -22495,7 +22495,7 @@
                     aD.aPj = function () {
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
 						aD.data.spawningSeed = randomSeed ? (FilteredSeed?FilterSeed[Math.floor(FilterSeed.length*Math.random())]:(aD.data.spawningSeed = Math.floor(16384 * Math.random()))) : aD.data.spawningSeed
-                        SecondSeed = RandomSecond ? (SecondSeed = Math.floor(511 * Math.random())) : SecondSeed
+                        SecondSeed = RandomSecond ||FilterSeed ? (SecondSeed = Math.floor(511 * Math.random())) : SecondSeed
 						aD.data.isReplay = 0;
                         aPn();
                         aD.a4b.a53();
@@ -24684,11 +24684,6 @@
 							
 							FilteredSeed = value;                      // 0 or 1
 							localStorage.setItem('FilteredSeed', value.toString())
-							
-							if(FilteredSeed){
-							RandomSecond = 1;                     
-
-							}
 						}));
 						
 						
