@@ -36,9 +36,9 @@
 				? (parseInt(localStorage.getItem('randomSeed'), 10) || 0)
 				: (localStorage.setItem('randomSeed', '1'), 1);
 				
-				var FilteredSeed = localStorage.getItem('FilteredSeed') !== null
-				? (parseInt(localStorage.getItem('FilteredSeed'), 10) || 0)
-				: (localStorage.setItem('FilteredSeed', '1'), 1);
+				var RandomFilter = localStorage.getItem('RandomFilter') !== null
+				? (parseInt(localStorage.getItem('RandomFilter'), 10) || 0)
+				: (localStorage.setItem('RandomFilter', '1'), 1);
 				
 				var RandomSecond = localStorage.getItem('RandomSecond') !== null
 				? (parseInt(localStorage.getItem('RandomSecond'), 10) || 0)
@@ -13621,7 +13621,7 @@
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
-						     var setword = randomSeed ? (FilteredSeed ?"F": "R" )+((RandomSecond||FilteredSeed)  ?"+": "" ): "S";
+						     var setword = randomSeed ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
 							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 ?"": " | "+SecondSeed )
                             return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
@@ -22494,8 +22494,8 @@
                     }
                     aD.aPj = function () {
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
-						aD.data.spawningSeed = randomSeed ? (FilteredSeed?FilterSeed[Math.floor(FilterSeed.length*Math.random())]:(aD.data.spawningSeed = Math.floor(16384 * Math.random()))) : aD.data.spawningSeed
-                        SecondSeed = (RandomSecond ||FilteredSeed) ? (Math.floor(511 * Math.random())) : SecondSeed
+						aD.data.spawningSeed = RandomFilter? (FilterSeed[Math.floor(FilterSeed.length*Math.random())]): (randomSeed? (aD.data.spawningSeed = Math.floor(16384 * Math.random())): aD.data.spawningSeed)
+                        SecondSeed = (RandomSecond ||RandomFilter) ? (Math.floor(511 * Math.random())) : SecondSeed
 						aD.data.isReplay = 0;
                         aPn();
                         aD.a4b.a53();
@@ -24678,12 +24678,12 @@
 						}));
 						
 						aNX.qS(new s0({
-							value: FilteredSeed
+							value: RandomFilter
 							
 						}, "Filtered Seed", function(value) {
 							
-							FilteredSeed = value;                      // 0 or 1
-							localStorage.setItem('FilteredSeed', value.toString())
+							RandomFilter = value;                      // 0 or 1
+							localStorage.setItem('RandomFilter', value.toString())
 						}));
 						
 						
