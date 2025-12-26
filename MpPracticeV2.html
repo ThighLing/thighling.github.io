@@ -22495,7 +22495,7 @@
                     aD.aPj = function () {
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
 						aD.data.spawningSeed = randomSeed ? (FilteredSeed?FilterSeed[Math.floor(FilterSeed.length*Math.random())]:(aD.data.spawningSeed = Math.floor(16384 * Math.random()))) : aD.data.spawningSeed
-                        SecondSeed = RandomSecond ||FilterSeed ? (SecondSeed = Math.floor(511 * Math.random())) : SecondSeed
+                        SecondSeed = (RandomSecond ||FilteredSeed) ? (Math.floor(511 * Math.random())) : SecondSeed
 						aD.data.isReplay = 0;
                         aPn();
                         aD.a4b.a53();
@@ -31745,22 +31745,23 @@
                     }
                     ;
                     this.j3 = function() {
+					this.a0I.aa2++;
 					let Tick = bf.k7();
 					aW.updateboard();
-					if( (1748 ===Tick&&Pause137)){
+					if( (1749 ===Tick&&Pause137)){
 					
 					 aM.a2E();
 					}
-					if(( 1298 === Tick&&Pause112)){
+					if(( 1299 === Tick&&Pause112)){
 					
 					 aM.a2E();
 					}
-					if(( 898 ===Tick&&Pause50)){
+					if(( 899 ===Tick&&Pause50)){
 					
 					     aM.a2E();
 					}
 					
-                        this.a0I.aa2++;
+                        
 						b8.hD.executeSavedHD();
                     }
                     ;
