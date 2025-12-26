@@ -13621,7 +13621,7 @@
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
-						     var setword = randomSeed ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
+						     var setword = (RandomFilter||randomSeed) ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
 							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 ?"": " | "+SecondSeed )
                             return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
