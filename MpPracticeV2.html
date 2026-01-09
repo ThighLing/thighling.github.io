@@ -96,6 +96,10 @@
 				var Pause137 = localStorage.getItem('Pause137') !== null
 				? (parseInt(localStorage.getItem('Pause137'), 10) || 0)
 				: (localStorage.setItem('Pause137', '1'), 0);
+				
+				var Pause151 = localStorage.getItem('Pause151') !== null
+				? (parseInt(localStorage.getItem('Pause151'), 10) || 0)
+				: (localStorage.setItem('Pause151', '1'), 0);
 
 				var VersionNumber = 1
 				var firstclick = 0
@@ -22642,7 +22646,12 @@
 							localStorage.setItem('Pause137', value.toString());
 						}));
 						
-						
+						aNX.qS(new s0({
+							value: Pause151
+						}, "Pause151", function(value) {
+							Pause151 = value;                      // 0 or 1
+							localStorage.setItem('Pause151', value.toString());
+						}));
 						
                         qW.push(aNX);
                     }
@@ -31749,6 +31758,11 @@
 					this.a0I.aa2++;
 					let Tick = bf.k7();
 					aW.updateboard();
+					
+					if( (1999 ===Tick&&Pause151)){
+					
+					 aM.a2E();
+					}
 					if( (1749 ===Tick&&Pause137)){
 					
 					 aM.a2E();
