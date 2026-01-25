@@ -104,7 +104,7 @@
 				var Fullscreen = localStorage.getItem('Fullscreen') !== null
 				? (parseInt(localStorage.getItem('Fullscreen'), 10) || 0)
 				: (localStorage.setItem('Fullscreen', '0'), 0);
-
+				var SetSeed = 1
 				var VersionNumber = 1
 				var firstclick = 0
 				var savedHD = [];
@@ -3783,6 +3783,7 @@
                             }
                         }
                         if (qn) {
+							SetSeed = 1
                             var r7 = qn(this);
                             if (!r7) {
                                 r8(this);
@@ -9441,6 +9442,7 @@
                         af.mV(true);
                     }
                     this.a1U = function(a4q) {
+						SetSeed = 0
                         if (!b9.pv.a4r.length) {
                             this.a4e = b9.a4s.zb();
                         } else {
@@ -10269,6 +10271,7 @@
                                 return true;
                             }
 							if (l7 === 3) {//<--- 
+								SetSeed = 0
                                 aD.aPj(); //Generate new map
 								aM.a2E(); //Keep pause menu
                                 return true;
@@ -22511,9 +22514,11 @@
                         bj.s3.s4(156, b9.a4s.zb());
                     }
                     aD.aPj = function () {
+						if(!SetSeed){
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
 						aD.data.spawningSeed = RandomFilter? (FilterSeed[Math.floor(FilterSeed.length*Math.random())]): (randomSeed? (aD.data.spawningSeed = Math.floor(16384 * Math.random())): aD.data.spawningSeed)
                         SecondSeed = (RandomSecond ||RandomFilter) ? (Math.floor(511 * Math.random())) : SecondSeed
+						}
 						aD.data.isReplay = 0;
                         aPn();
                         aD.a4b.a53();
@@ -22590,27 +22595,27 @@
                         ));
 						
 						aNX.qS(new sG()); //line
-						aNX.qS(new s0({
-							value: NoBotAttacks
-						}, "NoBotAttacks", function(value) {
-							NoBotAttacks = value;                      // 0 or 1
-							localStorage.setItem('NoBotAttacks', value.toString());
-						}));
-						aNX.qS(new s0({
-							value: NoBotName
-						}, "NoBotName", function(value) {
-							NoBotName = value;                      // 0 or 1
-							localStorage.setItem('NoBotName', value.toString());
-						}));
+						
+						
 						aNX.qS(new s0({
 							value: ConfirmQuit
 						}, "ConfirmQuit", function(value) {
 							ConfirmQuit = value;                      // 0 or 1
 							localStorage.setItem('ConfirmQuit', value.toString());
 						}));
-						
-						
-						
+						aNX.qS(new s0({
+							value: Fullscreen
+						}, "Fullscreen", function(value) {
+							Fullscreen = value;                      // 0 or 1
+							localStorage.setItem('Fullscreen', value.toString());
+						}));
+						aNX.qS(new sG()); //line
+						aNX.qS(new s0({
+							value: NoBotName
+						}, "NoBotName", function(value) {
+							NoBotName = value;                      // 0 or 1
+							localStorage.setItem('NoBotName', value.toString());
+						}));
 						aNX.qS(new s0({
 							value: NoTroop
 						}, "NoTroop", function(value) {
@@ -22623,13 +22628,8 @@
 							Density = value;                      // 0 or 1
 							localStorage.setItem('Density', value.toString());
 						}));
-						aNX.qS(new s0({
-							value: Fullscreen
-						}, "Fullscreen", function(value) {
-							Fullscreen = value;                      // 0 or 1
-							localStorage.setItem('Fullscreen', value.toString());
-						}));
 						
+						aNX.qS(new sG()); //line
 						aNX.qS(new s0({
 							value: MpMode
 						}, "MpMode", function(value) {
@@ -22649,34 +22649,41 @@
 						aNX.qS(new sG()); //line
 						aNX.qS(new s0({
 							value: Pause50
-						}, "Pause50", function(value) {
+						}, "Pause0:50", function(value) {
 							Pause50 = value;                      // 0 or 1
 							localStorage.setItem('Pause50', value.toString());
 						}));
 						aNX.qS(new s0({
 							value: Pause112
-						}, "Pause112", function(value) {
+						}, "Pause1:12", function(value) {
 							Pause112 = value;                      // 0 or 1
 							localStorage.setItem('Pause112', value.toString());
 						}));
 						
 						aNX.qS(new s0({
 							value: Pause137
-						}, "Pause137", function(value) {
+						}, "Pause1:37", function(value) {
 							Pause137 = value;                      // 0 or 1
 							localStorage.setItem('Pause137', value.toString());
 						}));
 						
 						aNX.qS(new s0({
 							value: Pause151
-						}, "Pause151", function(value) {
+						}, "Pause1:51", function(value) {
 							Pause151 = value;                      // 0 or 1
 							localStorage.setItem('Pause151', value.toString());
 						}));
 						
 						
-						
-						Fullscreen
+						aNX.qS(new sG()); //line
+						aNX.qH("Disable These:");
+				
+						aNX.qS(new s0({
+							value: NoBotAttacks
+						}, "DisableBotsAttackingYou", function(value) {
+							NoBotAttacks = value;                      // 0 or 1
+							localStorage.setItem('NoBotAttacks', value.toString());
+						}));
                         qW.push(aNX);
                     }
                     function aPz() {
