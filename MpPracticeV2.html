@@ -13466,7 +13466,7 @@
                         aAw[3] = L(112);
                         aAw[4] = "Troops";
                         aAw[5] = L(114, 0, S[104]);
-						aAw[6] = randomSeed ?"Pace": "Slider" ;
+						aAw[6] = randomSeed&&!SetSeed ?"Pace": "Slider" ;
 						aAw[7] = "Seed"
 						aAw[8] = "LastAttack"
 						aAw[9] = L(116);
@@ -13642,7 +13642,7 @@
                         } else if (aB === 5) {
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
-						     var setword = (RandomFilter||randomSeed) ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
+						     var setword = ((RandomFilter||randomSeed)&&!SetSeed) ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
 							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 && RandomFilter ===0 ?"": " | "+SecondSeed )
                             return setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
