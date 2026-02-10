@@ -8118,7 +8118,7 @@
                             if (!aD.a09) {
                                 return;
                             }
-                            aM.gx && aM.a2E();
+                            aM.gx && aM.a2E(0);
                             aD.gw && bC.a2F(false);
                         }
                     }
@@ -8128,7 +8128,7 @@
                         }
                     }
                     function a1s() {
-                        return a1X + 15000 > bf.eM;
+                        return a1X /*+ 15000 */> bf.eM;
                     }
                     this.a2G = function() {
                         return a1s();
@@ -10178,12 +10178,13 @@
                         yJ.setTransform(1, 0, 0, 1, 0, 0);
                     }
                     this.a2E = function(valueP) {
-					if(!AutoP){
+					if(!AutoP||valueP === 0){
 					this.gx = !this.gx;
+					TotalPauses++
 					}
 					arguments.length === 0||aD.data.isReplay?  AutoP = 0:AutoP = valueP;
 					 firstclick = 0
-						TotalPauses++
+						
                      
                         if (!this.gx) {
                             a5p = -1;
