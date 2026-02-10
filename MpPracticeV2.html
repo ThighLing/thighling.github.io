@@ -77,9 +77,9 @@
 				? (parseInt(localStorage.getItem('NoBotAttacks'), 10) || 0)
 				: (localStorage.setItem('NoBotAttacks', '0'), 0);
 				
-				var ConfirmQuit = localStorage.getItem('ConfirmQuit') !== null
-				? (parseInt(localStorage.getItem('ConfirmQuit'), 10) || 0)
-				: (localStorage.setItem('ConfirmQuit', '0'), 0);
+				var SafeQuit = localStorage.getItem('SafeQuit') !== null
+				? (parseInt(localStorage.getItem('SafeQuit'), 10) || 0)
+				: (localStorage.setItem('SafeQuit', '0'), 0);
 				
 				var NoBotName = localStorage.getItem('NoBotName') !== null
 				? (parseInt(localStorage.getItem('NoBotName'), 10) || 0)
@@ -104,6 +104,7 @@
 				var Fullscreen = localStorage.getItem('Fullscreen') !== null
 				? (parseInt(localStorage.getItem('Fullscreen'), 10) || 0)
 				: (localStorage.setItem('Fullscreen', '0'), 0);
+				var AutoP = 0
 				var SetSeed = 1
 				var VersionNumber = 1
 				var firstclick = 0
@@ -10175,10 +10176,14 @@
                         yJ.drawImage(ab.get(0), 0, 0);
                         yJ.setTransform(1, 0, 0, 1, 0, 0);
                     }
-                    this.a2E = function() {
+                    this.a2E = function(valueP) {
+					if(!AutoP){
+					this.gx = !this.gx;
+					}
+					arguments.length === 0?  AutoP = 0:AutoP = valueP;
 					 firstclick = 0
 						TotalPauses++
-                        this.gx = !this.gx;
+                     
                         if (!this.gx) {
                             a5p = -1;
                             a5s();
@@ -10256,33 +10261,47 @@
                                 return !aD.gw;
                             }
                             if (l7 === 0) {
-							if(!ConfirmQuit){
+							if(AutoP){
+							this.a2E();
+							}else{
+							if(!SafeQuit){
                                 aD.a1U();
                                 return true;
 								
-								}else {firstclick = 1}
+								}else {
+								AutoP = 1
+								this.a2E(1);
+								
+								}
                             }
+							}
                             if (l7 === 1) {
+							if(AutoP){
+								AutoP = 0
+							}
                                 this.a2E();
                                 return true;
                             }
-                            if (l7 === 2) {
-                                t.u(1, 0);
-                                return true;
-                            }
-							if (l7 === 3) {//<--- 
-								SetSeed = 0
-                                aD.aPj(); //Generate new map
-								aM.a2E(); //Keep pause menu
-                                return true;
-                            }
-							if (ConfirmQuit){
-							if (l7 === 4) {//<--- 
-								if (firstclick===1){
-                                aD.a1U(); //Confirm Quit
-                                return true;
+							if (l7 === 2) {
+									t.u(1, 0);
+									return true;
 								}
-                            }
+							if(!AutoP){
+								
+								if (l7 === 3) {//<--- 
+									SetSeed = 0
+									aD.aPj(); //Generate new map
+									aM.a2E(); //Keep pause menu
+									return true;
+								}
+								if (SafeQuit){
+									if (l7 === 4) {//<--- 
+										
+										aD.a1U(); //Confirm Quit
+										return true;
+										
+									}
+								}
 							}
                             return true;
                         }
@@ -10311,7 +10330,7 @@
 							if (lQ >= aR.ew - 2 * (j + a5q * bc.gap)) {//New Seed
 								return 3;   
 							}
-							if(ConfirmQuit){
+							if(SafeQuit){
 							if (lQ >= aR.ew - 3 * (j + a5q * bc.gap)) {//Confirm Quit
 								return 4;   
 							}
@@ -10323,7 +10342,9 @@
                     }
                     this.uj = function() {
                         if (this.gx) {
+							
                             a5x();
+							
                             a5y();
                             uk.setTransform(1, 0, 0, 1, 0, 0);
                         } else {
@@ -10357,14 +10378,20 @@
                         uk.font = a5o;
                         bA.qb.textBaseline(uk, 1);
                         bA.qb.textAlign(uk, 1);
-                        uk.fillText(L(42), 2 * j, 0.54 * j);
+						
+                        uk.fillText( (AutoP ? "More Buttons": (SafeQuit?"Less Buttons":L(42))), 2 * j, 0.54 * j);
+						
                         en = 0.4 * j;
                         aM.a5z(bc.gap + 4 * j + (1.5 * j - en) / 2, aR.ew + 0.3 * j, en);
                     }
                     function a5y() {
-                        a60(1);
+					a60(1);
+						if(!AutoP){
+                        
 						a6b1(2)
 						a6b4(3)
+						}
+						
                     }
                     function a60(aB) {
                         uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
@@ -10397,7 +10424,7 @@
                         uk.fillText("New Seed", 2 * j, 0.54 * j);
                     }
 					function a6b4(aB) {
-					if(ConfirmQuit){
+					if(SafeQuit){
                         uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
                         uk.fillStyle = bB.nf;
                         uk.fillRect(0, 0, 4 * j, j);
@@ -10410,7 +10437,7 @@
                         uk.fillRect(0, 0, 1, j);
                         uk.fillRect(4 * j, 0, 1, j);
                         uk.fillRect(0, j - 1, 4 * j, 1);
-                        uk.fillText("Confirm Quit", 2 * j, 0.54 * j);
+                        uk.fillText("Quit Game", 2 * j, 0.54 * j);
 						}
                     }
                     this.a5z = function(eu, ew, en) {
@@ -22598,10 +22625,10 @@
 						
 						
 						aNX.qS(new s0({
-							value: ConfirmQuit
-						}, "ConfirmQuit", function(value) {
-							ConfirmQuit = value;                      // 0 or 1
-							localStorage.setItem('ConfirmQuit', value.toString());
+							value: SafeQuit
+						}, "SafeQuit", function(value) {
+							SafeQuit = value;                      // 0 or 1
+							localStorage.setItem('SafeQuit', value.toString());
 						}));
 						aNX.qS(new s0({
 							value: Fullscreen
@@ -31792,19 +31819,19 @@
 					
 					if( (1999 ===Tick&&Pause151)){
 					
-					 aM.a2E();
+					 aM.a2E(1);
 					}
 					if( (1749 ===Tick&&Pause137)){
 					
-					 aM.a2E();
+					 aM.a2E(1);
 					}
 					if(( 1299 === Tick&&Pause112)){
 					
-					 aM.a2E();
+					 aM.a2E(1);
 					}
 					if(( 899 ===Tick&&Pause50)){
 					
-					     aM.a2E();
+					     aM.a2E(1);
 					}
 					
                         
