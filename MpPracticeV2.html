@@ -64,6 +64,9 @@
 				? (parseInt(localStorage.getItem('SecondSeed'), 10) || 0)
 				: (localStorage.setItem('SecondSeed', '0'), 0);
 				
+				var LogCycles = localStorage.getItem('LogCycles') !== null
+				? (parseInt(localStorage.getItem('LogCycles'), 10) || 0)
+				: (localStorage.setItem('LogCycles', '0'), 0);
 				
 				var Density = localStorage.getItem('Density') !== null
 				? (parseInt(localStorage.getItem('Density'), 10) || 0)
@@ -104,6 +107,7 @@
 				var Fullscreen = localStorage.getItem('Fullscreen') !== null
 				? (parseInt(localStorage.getItem('Fullscreen'), 10) || 0)
 				: (localStorage.setItem('Fullscreen', '0'), 0);
+				var LogArray = []
 				var AutoP = 0
 				var SetSeed = 1
 				var VersionNumber = 1
@@ -8128,7 +8132,7 @@
                         }
                     }
                     function a1s() {
-                        return a1X /*+ 15000 */> bf.eM;
+                        return a1X + 15000 > bf.eM;
                     }
                     this.a2G = function() {
                         return a1s();
@@ -10304,7 +10308,20 @@
 										
 									}
 								}
+								
+								
 							}
+							if (LogCycles){
+									if (l7 === 5) {//<--- 
+										let titles = ["Tick", "Land", "Troops", "Land Income", "Interest Income", "Received", "Additional", "Land Expense", "Naval","Transmitted", "Taxes"];
+										let rows = Array.isArray(LogArray[0]) ? LogArray : [LogArray];
+										let csv = [titles.join(","), ...rows.map(r => r.join(","))].join("\n");
+										let a = document.createElement("a");
+										a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+										a.download = "LogArray.csv";
+										a.click();
+									}
+								}
                             return true;
                         }
                         if (l7 === 9) {
@@ -10335,6 +10352,11 @@
 							if(SafeQuit){
 							if (lQ >= aR.ew - 3 * (j + a5q * bc.gap)) {//Confirm Quit
 								return 4;   
+							}
+							}
+							if(LogCycles){
+							if (lQ >= aR.ew - 4 * (j + a5q * bc.gap)) {//Save Log
+								return 5;   
 							}
 							}
                         } else if (lP <= 7 * j + bc.gap && lQ >= aR.ew - j - a5q * bc.gap) {
@@ -10392,6 +10414,7 @@
                         
 						a6b1(2)
 						a6b4(3)
+						a6b5(4)
 						}
 						
                     }
@@ -10442,6 +10465,24 @@
                         uk.fillText("Quit Game", 2 * j, 0.54 * j);
 						}
                     }
+					function a6b5(aB) {
+					if(LogCycles){
+                        uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
+                        uk.fillStyle = bB.nf;
+                        uk.fillRect(0, 0, 4 * j, j);
+                        if (a5p === aB + 1) {
+                            uk.fillStyle = bB.nk;
+                            uk.fillRect(0, 0, 4 * j, j);
+                        }
+                        uk.fillStyle = bB.nj;
+                        uk.fillRect(0, 0, 4 * j, 1);
+                        uk.fillRect(0, 0, 1, j);
+                        uk.fillRect(4 * j, 0, 1, j);
+                        uk.fillRect(0, j - 1, 4 * j, 1);
+                        uk.fillText("Save Log", 2 * j, 0.54 * j);
+						}
+                    }
+					
                     this.a5z = function(eu, ew, en) {
                         uk.setTransform(1, 0, 0, 1, eu, ew);
                         uk.lineWidth = bc.z7;
@@ -22658,6 +22699,15 @@
 							localStorage.setItem('Density', value.toString());
 						}));
 						
+						aNX.qS(new s0({
+							value: LogCycles
+						}, "LogCycles", function(value) {
+							LogCycles = value;                      // 0 or 1
+							localStorage.setItem('LogCycles', value.toString());
+						}));
+						
+						
+						
 						aNX.qS(new sG()); //line
 						aNX.qS(new s0({
 							value: MpMode
@@ -31448,6 +31498,7 @@
                     this.aa5 = 7;
                     this.a73 = 0;
 					savedHD = [];
+					LogArray = []
 					LastAttack = 0;
 					TotalPauses = 0;
 					PercentATK = 0;
@@ -31746,6 +31797,7 @@
 					PercentDiff = 0;
 					LastSample = -1;
 					TotalPauses = 0;
+					LogArray = []
                     var e8 = 0;
                     var eM = bf.eM;
                     this.aa2 = 0;
@@ -31815,9 +31867,19 @@
                     }
                     ;
                     this.j3 = function() {
+					let PlayerID = aD.eX;
+					let f88 = bd.mf;
 					this.a0I.aa2++;
 					let Tick = bf.k7();
 					aW.updateboard();
+					
+					let Land = ag.gb[PlayerID];
+					
+					let Troops = ag.gp[PlayerID]
+					
+					if(99 ===Tick%100&&LogCycles){
+						LogArray.push([Tick,Land,Troops,f88[8],f88[9],f88[10],f88[18],f88[13],f88[15],f88[16],f88[12]])
+					}
 					
 					if( (1999 ===Tick&&Pause151)){
 					
