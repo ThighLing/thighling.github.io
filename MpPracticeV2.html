@@ -10312,7 +10312,7 @@
 								
 							}
 							if (LogCycles){
-									if (l7 === 5) {//<--- 
+									if (l7 === (5-(1-SafeQuit))) {//<--- 
 										let titles = ["Tick", "Land", "Troops", "Land Income", "Interest Income", "Received", "Additional", "Land Expense", "Naval","Transmitted", "Taxes"];
 										let rows = Array.isArray(LogArray[0]) ? LogArray : [LogArray];
 										let csv = [titles.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -10355,8 +10355,8 @@
 							}
 							}
 							if(LogCycles){
-							if (lQ >= aR.ew - 4 * (j + a5q * bc.gap)) {//Save Log
-								return 5;   
+							if (lQ >= aR.ew - (4-(1-SafeQuit)) * (j + a5q * bc.gap)) {//Save Log
+								return 5-(1-SafeQuit);   
 							}
 							}
                         } else if (lP <= 7 * j + bc.gap && lQ >= aR.ew - j - a5q * bc.gap) {
@@ -10413,8 +10413,11 @@
 						if(!AutoP){
                         
 						a6b1(2)
+						if(SafeQuit){
+						
 						a6b4(3)
-						a6b5(4)
+						}
+						a6b5(4-(1-SafeQuit))
 						}
 						
                     }
@@ -10449,7 +10452,7 @@
                         uk.fillText("New Seed", 2 * j, 0.54 * j);
                     }
 					function a6b4(aB) {
-					if(SafeQuit){
+					
                         uk.setTransform(1, 0, 0, 1, bc.gap, aR.ew - aB * a5q * bc.gap - aB * j);
                         uk.fillStyle = bB.nf;
                         uk.fillRect(0, 0, 4 * j, j);
@@ -10463,7 +10466,7 @@
                         uk.fillRect(4 * j, 0, 1, j);
                         uk.fillRect(0, j - 1, 4 * j, 1);
                         uk.fillText("Quit Game", 2 * j, 0.54 * j);
-						}
+						
                     }
 					function a6b5(aB) {
 					if(LogCycles){
