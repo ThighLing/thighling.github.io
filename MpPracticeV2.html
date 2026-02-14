@@ -76,9 +76,9 @@
 				? (parseInt(localStorage.getItem('NoTroop'), 10) || 0)
 				: (localStorage.setItem('NoTroop', '0'), 0);
 				
-				var NoBotAttacks = localStorage.getItem('NoBotAttacks') !== null
+				var NoBotAttacks = 0/*localStorage.getItem('NoBotAttacks') !== null
 				? (parseInt(localStorage.getItem('NoBotAttacks'), 10) || 0)
-				: (localStorage.setItem('NoBotAttacks', '0'), 0);
+				: (localStorage.setItem('NoBotAttacks', '0'), 0);*/
 				
 				var SafeQuit = localStorage.getItem('SafeQuit') !== null
 				? (parseInt(localStorage.getItem('SafeQuit'), 10) || 0)
