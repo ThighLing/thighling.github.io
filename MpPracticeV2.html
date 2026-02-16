@@ -107,6 +107,10 @@
 				var Fullscreen = localStorage.getItem('Fullscreen') !== null
 				? (parseInt(localStorage.getItem('Fullscreen'), 10) || 0)
 				: (localStorage.setItem('Fullscreen', '0'), 0);
+				
+				var ZeroDensOnly = localStorage.getItem('ZeroDensOnly') !== null
+				? (parseInt(localStorage.getItem('ZeroDensOnly'), 10) || 0)
+				: (localStorage.setItem('ZeroDensOnly', '0'), 0);
 				var LogArray = []
 				var AutoP = 0
 				var SetSeed = 1
@@ -998,13 +1002,16 @@
                     }
                 }
                 function gf() {
+				let PlayerID = aD.eX;
                     var gg = fj * aD.g7;
                     var gh = gi();
                     var gj = gk();
                     var gl = gg + 2 * gh + gj;
                     var gm = fh * fj;
                     if (gm > gl) {
-                        ff -= gl;
+					
+					let density = ag.gp[fi] / ag.gb[fi] 
+                        ff -=  ZeroDensOnly && density>0.5 && fe===PlayerID? (density<1.5? Math.min(gl/(1.5-density),ff):ff): gl
                         bd.gD(fe, gl, 13);
                         gn(gl - gg, gj);
                         return true;
@@ -13679,6 +13686,7 @@
 						var Occupation = bA.ra.a4B(Math.floor((Land+0.5) /MapLand*10000) / 100, 2);
                             return Occupation +" "+aAy[aB].toString();
                         } else if (aB === 3) {
+							
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 6) {
 							//PercentATK= bL.hv(((((calcPerc()-Land+1)/TotalPlayers)*2*2)/(Troops+Land*(Tick%100/100))*100*(Tick - LastSample)+PercentATK*SampleSize)/(SampleSize+(Tick - LastSample)),0,100)
@@ -13710,9 +13718,10 @@
 							var setword3 = randomSeed ? "" : " "+ bA.ra.a4B(MakePercentage, (MakePercentage < 10 ? 1 : 0))
 							return statword+" "+Math.ceil((paceword)*100+Tick)+setword3;
                         } else if (aB === 4) {
-						
-                            return TotalTroops;
+						let wordEff = ZeroDensOnly ? "ZeroOnly ":""
+                            return wordEff + TotalTroops;
                         } else if (aB === 5) {
+						
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
 						     var setword = ((RandomFilter||randomSeed)&&!SetSeed) ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
@@ -22766,6 +22775,14 @@
 							NoBotAttacks = value;                      // 0 or 1
 							localStorage.setItem('NoBotAttacks', value.toString());
 						}));
+						
+						aNX.qS(new s0({
+							value: ZeroDensOnly
+						}, "ZeroDensBotsOnly", function(value) {
+							ZeroDensOnly = value;                      // 0 or 1
+							localStorage.setItem('ZeroDensOnly', value.toString());
+						}));
+						
                         qW.push(aNX);
                     }
                     function aPz() {
