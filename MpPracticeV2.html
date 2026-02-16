@@ -104,6 +104,10 @@
 				? (parseInt(localStorage.getItem('Pause151'), 10) || 0)
 				: (localStorage.setItem('Pause151', '0'), 0);
 				
+				var PauseinReplayOnly = localStorage.getItem('PauseinReplayOnly') !== null
+				? (parseInt(localStorage.getItem('PauseinReplayOnly'), 10) || 0)
+				: (localStorage.setItem('PauseinReplayOnly', '0'), 0);
+				
 				var Fullscreen = localStorage.getItem('Fullscreen') !== null
 				? (parseInt(localStorage.getItem('Fullscreen'), 10) || 0)
 				: (localStorage.setItem('Fullscreen', '0'), 0);
@@ -22738,6 +22742,13 @@
                         }
                         ));
 						aNX.qS(new sG()); //line
+						
+						aNX.qS(new s0({
+							value: PauseinReplayOnly
+						}, "PauseinReplayOnly", function(value) {
+							PauseinReplayOnly = value;                      // 0 or 1
+							localStorage.setItem('PauseinReplayOnly', value.toString());
+						}));
 						aNX.qS(new s0({
 							value: Pause50
 						}, "Pause0:50", function(value) {
@@ -22764,6 +22775,7 @@
 							Pause151 = value;                      // 0 or 1
 							localStorage.setItem('Pause151', value.toString());
 						}));
+						
 						
 						
 						aNX.qS(new sG()); //line
@@ -31900,7 +31912,7 @@
 					if(99 ===Tick%100&&LogCycles){
 						LogArray.push([Tick,Land,Troops,f88[8],f88[9],f88[10],f88[18],f88[13],f88[15],f88[16],f88[12]])
 					}
-					
+					if (!(PauseinReplayOnly && !aD.data.isReplay)){
 					if( (1999 ===Tick&&Pause151)){
 					
 					 aM.a2E(1);
@@ -31917,7 +31929,7 @@
 					
 					     aM.a2E(1);
 					}
-					
+					}
                         
 						b8.hD.executeSavedHD();
                     }
