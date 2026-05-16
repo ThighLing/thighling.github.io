@@ -52,6 +52,10 @@
 				? (parseInt(localStorage.getItem('MpMode'), 10) || 0)
 				: (localStorage.setItem('MpMode', '0'), 0);
 				
+				var StartPercentage = localStorage.getItem('StartPercentage') !== null
+				? (parseInt(localStorage.getItem('StartPercentage'), 10) || 0)
+				: (localStorage.setItem('StartPercentage', '0'), 0);
+				
 				var Pace = localStorage.getItem('Pace') !== null
 				? (parseInt(localStorage.getItem('Pace'), 10) || 0)
 				: (localStorage.setItem('Pace', '250'), 250);
@@ -59,6 +63,10 @@
 				var Delay = localStorage.getItem('Delay') !== null
 				? (parseInt(localStorage.getItem('Delay'), 10) || 3)
 				: (localStorage.setItem('Delay', '3'), 3);
+				
+				var SetPercentage = localStorage.getItem('SetPercentage') !== null
+				? (parseInt(localStorage.getItem('SetPercentage'), 10) || 0)
+				: (localStorage.setItem('SetPercentage', '512'), 512);
 				
 				var SecondSeed = localStorage.getItem('SecondSeed') !== null
 				? (parseInt(localStorage.getItem('SecondSeed'), 10) || 0)
@@ -12089,7 +12097,7 @@
                     this.dd = function() {
                         hZ = !aD.hB && !aD.gw;
                         a7H = false;
-                        iN = 0.5;
+                        iN = StartPercentage ? SetPercentage/1024 : 0.5;
                         a4I = 0;
                         this.h1 = false;
                         this.resize();
@@ -22778,6 +22786,23 @@
 						
 						
 						
+						aNX.qS(new sG()); //line
+						aNX.qS(new s0({
+							value: StartPercentage
+						}, "StartPercentage", function(value) {
+							StartPercentage = value;                      // 0 or 1
+							localStorage.setItem('StartPercentage', value.toString());
+						}));
+						
+						aNX.qS(new rP({
+							e8: -1,
+                           value: SetPercentage
+                        },1,0,function(e) {
+                            var eSetPercentage = bL.hv(Math.floor(e.target.value), 1, 1024); 
+							e.target.value = SetPercentage = eSetPercentage;
+							localStorage.setItem('SetPercentage', SetPercentage.toString());
+                        }
+                        ));
 						aNX.qS(new sG()); //line
 						aNX.qH("Disable These:");
 				
