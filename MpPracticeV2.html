@@ -10311,7 +10311,7 @@
 									t.u(1, 0);
 									return true;
 								}
-							if(!AutoP){
+							if(!AutoP&&!aD.data.isReplay){
 								
 								if (l7 === 3) {//<--- 
 									SetSeed = 0
@@ -10331,7 +10331,7 @@
 								
 							}
 							if (LogCycles){
-									if (l7 === (5-(1-SafeQuit))) {//<--- 
+									if (l7 === (5-(1-SafeQuit)-aD.data.isReplay)) {//<--- 
 										let titles = ["Tick", "Land", "Troops", "Land Income", "Interest Income", "Received", "Additional", "Land Expense", "Naval","Transmitted", "Taxes"];
 										let rows = Array.isArray(LogArray[0]) ? LogArray : [LogArray];
 										let csv = [titles.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -10365,6 +10365,7 @@
                                 return 2;
                             }
 
+							if(!aD.data.isReplay){
 							if (lQ >= aR.ew - 2 * (j + a5q * bc.gap)) {//New Seed
 								return 3;   
 							}
@@ -10373,11 +10374,13 @@
 								return 4;   
 							}
 							}
+							}
 							if(LogCycles){
-							if (lQ >= aR.ew - (4-(1-SafeQuit)) * (j + a5q * bc.gap)) {//Save Log
-								return 5-(1-SafeQuit);   
+							if (lQ >= aR.ew - (4-(1-SafeQuit)-aD.data.isReplay) * (j + a5q * bc.gap)) {//Save Log
+								return 5-(1-SafeQuit)-aD.data.isReplay;   
 							}
 							}
+							
                         } else if (lP <= 7 * j + bc.gap && lQ >= aR.ew - j - a5q * bc.gap) {
                             return 1;
                         }
@@ -10430,13 +10433,14 @@
                     function a5y() {
 					a60(1);
 						if(!AutoP){
-                        
+                        if(!aD.data.isReplay){
 						a6b1(2)
 						if(SafeQuit){
 						
 						a6b4(3)
 						}
-						a6b5(4-(1-SafeQuit))
+						}
+						a6b5(4-(1-SafeQuit)-aD.data.isReplay)
 						}
 						
                     }
