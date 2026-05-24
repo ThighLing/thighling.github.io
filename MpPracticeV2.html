@@ -123,6 +123,13 @@
 				var ZeroDensOnly = localStorage.getItem('ZeroDensOnly') !== null
 				? (parseInt(localStorage.getItem('ZeroDensOnly'), 10) || 0)
 				: (localStorage.setItem('ZeroDensOnly', '0'), 0);
+				
+				var KeybindCharList = [];
+				var KeybindPercentages = [];	
+				var KeybindType = localStorage.getItem('KeybindType') !== null
+				? (parseInt(localStorage.getItem('KeybindType'), 10) || 0)
+				: (localStorage.setItem('KeybindType', '0'), 0);
+				var KeybindData = JSON.parse(localStorage.getItem("KeybindData")) || [];		
 				var LogArray = []
 				var AutoP = 0
 				var SetSeed = 1
@@ -144,6 +151,44 @@
 				  else if (land >= 300000)    return 1/3;
 				  return 4;
 				}
+				function updateKeybindLists() {
+					KeybindCharList = [];
+					KeybindPercentages = [];
+					for (var i = 0; i + 1 < KeybindData.length; i += 2) {
+						var chars = String(KeybindData[i]);
+						var percentage = parseFloat(KeybindData[i + 1]);
+						if (isNaN(percentage)) {
+							percentage = 0;
+						}
+						percentage = Math.max(0, Math.min(percentage, 100));
+						for (var j = 0; j < chars.length; j++) {
+							var ch = chars[j].toLowerCase();
+							if (ch === " ") {
+								continue;
+							}
+							if (KeybindCharList.indexOf(ch) !== -1) {
+								continue;
+							}
+							KeybindCharList.push(ch);
+							KeybindPercentages.push(percentage);
+						}
+					}
+				}
+
+				
+				document.addEventListener("keydown", function(e) {
+					if (KeybindType !== 1) {
+						return;
+					}
+					var key = e.key.toLowerCase();
+					var index = KeybindCharList.indexOf(key);
+					if (index === -1) {
+						return;
+					}
+					var percentage = KeybindPercentages[index];
+					aR.setPercentage(percentage);
+				});
+				
 				var FilterSeed = [
 				1867,14516,10755,5628,6203,10180,2547,13836,14123,2260,6115,10268,9243,7140,5075,11308,7947,8436,15811,572,10235,6148,5555,10828,16107,276,7075,9308,9179,7204,3987,12396,5835,10548,12675,3708,6075,10308,371,16012,9899,6484,16227,156,3915,12468,12803,3580,8251,8132,4595,11788,16171,212,8163,8220,11291,5092,7123,9260,9995,6388,1475,14908,12283,4100,7603,8780,1771,14612,9123,7260,11227,5156,6035,10348,7883,8500,14723,1660,8123,8260,2419,13964,11947,4436,1891,14492,16203,180,8707,7676,4155,12228,499,15884,12075,4308,4067,12316,7195,9188,3027,13356,5899,10484,13763,2620,8187,8196,3507,12876,14059,2324,5027,11356,7131,9252,1939,14444,3787,12596,10627,5756,4027,12356,14707,1676,7851,8532,14179,2204,10010,6373,706,15677,14570,1813,12690,3693,5306,11077,2658,13725,14986,1397,3378,13005,10842,5541,14850,1533,9258,7125,4306,12077,10234,6149,4514,11869,13770,2613,15474,909,3482,12901,4418,11965,12138,4245,4114,12269,6970,9413,14562,1821,4362,12021,2994,13389,4314,12069,2178,14205,6826,9557,12114,4269,11898,4485,34,16349,3146,13237,15090,1293,15130,1253,5826,10557,3306,13077,1426,14957,10426,5957,7778,8605,3722,12661,8498,7885,15962,421,3586,12797,14378,2005,9426,6957,15354,1029,9634,6749,2506,13877,4210,12173,8602,7781,9538,6845,874,15509,9234,7149,12090,4293,3298,13085,9482,6901,8114,8269,9434,6949,7298,9085,11946,4437,850,15533,634,15749,5154,11229,8266,8117,3826,12557,13082,3301,3778,12605,1258,15125,15762,621,8378,8005,5730,10653,1674,14709,6450,9933,13914,2469,1538,14845,12330,4053,7378,9005,13306,3077,7586,8797,458,15925,2162,14221,6554,9829,7490,8893,15210,1173,7186,9197,10042,6341,1250,15133,7434,8949,6066,10317,7386,8997,5250,11133,9898,6485,15186,1197,14970,1413,3106,13277,6218,10165,1778,14605,923,15460,11091,5292,11915,4468,1347,15036,10107,6276,3379,13004,11883,4500,803,15580,859,15524,10003,6380,9803,6580,14595,1788,5947,10436,14579,1804,5675,10708,9955,6428,8987,7396,723,15660,15883,500,3267,13116,9979,6404,1203,15180,7659,8724,10915,5468,8923,7460,16019,364,13771,2612,131,16252,5819,10564,12403,3980,1451,14932,3683,12700,667,15716,6739,9644,3467,12916,5187,11196,9851,6532,2971,13412,13139,3244,13963,2420,3395,12988,12155,4228,5427,10956,13931,2452,2851,13532,2907,13476,12051,4332,11851,4532,259,16124,7995,8388,243,16140,7723,8660,12003,4380,11035,5348,2771,13612,1547,14836,5315,11068,12027,4356,3251,13132,9707,6676,12963,3420,10971,5412,1683,14700,15819,564,2179,14204,7867,8516,14451,1932,3499,12884,5731,10652,2715,13668,8787,7596,5515,10868,7235,9148,11899,4484,7226,9157,2530,13853,12810,3573,15538,845,4570,11813,6530,9853,15274,1109,8274,8109,12154,4229,4386,11997,11594,4789,11250,5133,13594,2789,12482,3901,1770,14613,8082,8301,8890,7493,14434,1949,2186,14197,15154,1229,14426,1957,10242,6141,12346,4037,7650,8733,1546,14837,4274,12109,9690,6693,11650,4733,4010,12373,13394,2989,890,15493,9506,6877,330,16053,16370,13,2330,14053,1218,15165,6890,9493,13202,3181,14010,2373,3170,13213,7306,9077,3890,12493,3162,13221,15362,1021,10298,6085,5602,10781,15882,501,2226,14157,7642,8741,9602,6781,1962,14421,11346,5037,15226,1157,7458,8925,14666,1717,14322,2061,282,16101,15554,829,4842,11541,11154,5229,11962,4421,1122,15261,5258,11125,1842,14541,1114,15269,13314,3069,8667,7716,11667,4716,5323,11060,3971,12412,5563,10820,8051,8332,9387,6996,7523,8860,411,15972,2387,13996,11403,4980,9027,7356,9595,6788,11059,5324,11371,5012,8483,7900,347,16036,1299,15084,9291,7092,5891,10492,5435,10948,5875,10508,5163,11220,1251,15132,8475,7908,8403,7980,15371,1012,10947,5436,9467,6916,8883,7500,7147,9236,2211,14172,8411,7972,7315,9068,13259,3124,7811,8572,5307,11076,3699,12684,939,15444,11363,5020,155,16228,10715,5668,13715,2668,7371,9012,6019,10364,7611,8772,10099,6284,11435,4948,9571,6812,2459,13924,4435,11948,13451,2932,11075,5308,11643,4740,13107,3276,13419,2964,10531,5852,2395,13988,3347,13036,11339,5044,7939,8444,7483,8900,7923,8460,7211,9172,3299,13084,10523,5860,10451,5932,1035,15348,12995,3388,11515,4868,10931,5452,9195,7188,4259,12124,10459,5924,9363,7020,15307,1076,9859,6524,7355,9028,5747,10636,2987,13396,13411,2972,2203,14180,673,15710,12985,3398,1105,15278,3945,12438,11265,5118,12825,3558,14769,1614,6857,9526,11617,4766,2425,13958,1809,14574,15913,470,1729,14654,15009,1374,10937,5446,15441,942,1897,14486,9217,7166,10777,5606,12721,3662,4809,11574,9569,6814,377,16006,16145,238,13865,2518,16065,318
 
@@ -8345,7 +8390,30 @@
                         }
                     }
                     ;
-                    this.a2p = function(qI, g, rX) {
+					this.a2Keybind = function(qI, g, a2o) {
+						g.length = 0;
+						qI = bA.ra.a4N(qI, "\r", "");
+						qI = bA.ra.a4N(qI, "\n", ",");
+						var raw = qI.split(",");
+						var tE = [];
+						for (var aB = 0; aB < raw.length; aB++) {
+							var item = raw[aB].trim();
+							if (item !== "") {
+								tE.push(item);
+							}
+						}
+						for (var aB = 0; aB + 1 < tE.length; aB += 2) {
+							var key = tE[aB];
+							var value = parseFloat(tE[aB + 1]);
+							if (isNaN(value)) {
+								value = 0;
+							}
+							value = Math.max(0, Math.min(value, a2o));
+							g.push(key);
+							g.push(value);
+						}
+					};
+					is.a2p = function(qI, g, rX) {
                         g.fill("");
                         var tE = qI.split("\"");
                         var en = Math.min(tE.length, 2 * g.length);
@@ -12209,6 +12277,9 @@
                         return bL.hv(Math.floor(iN * 1024 + 0.5) - 1, 0, 1023);
                     }
                     ;
+					this.setPercentage = function(value) {
+						iN = value/100;
+					}
                     this.a27 = function(lP, lQ) {
                         return this.hZ() && lP > eu && lP < eu + i && lQ > this.ew;
                     }
@@ -20630,7 +20701,10 @@
                                 l5 = new aN8();
                             } else if (e8 === 30) {
                                 l5 = new aN9();
+                            }else if (e8 === 14516) {
+                                l5 = new setupKeybind();
                             }
+							
                             l5.aMj = aMj;
                             aMg[e8] = l5;
                         }
@@ -22634,6 +22708,7 @@
                         qW.push(aPq());
                         qW.push(aPr());
                         qW.push(aPs());
+						Keybinds(qW)
                         aPt(qW);
                         aPu(qW);
                         aPv(qW);
@@ -22881,6 +22956,18 @@
                         aNX.qN(g[aD.data.playerNamesType]);
                         aNX.qS(new s6([new w(L(295),function() {
                             t.u(23);
+                        }
+                        ).button]));
+                        qW.push(aNX);
+                    }
+					function Keybinds(qW) {
+                        var aNX = new qE();
+                        aNX.qH("Keybinds");
+						updateKeybindLists();
+                        var g = ["Disabled", KeybindPercentages.length === 0 ? "Enabled": KeybindPercentages.join(" ").substring(0, 20)];
+                        aNX.qN(g[KeybindType]);
+                        aNX.qS(new s6([new w(L(295),function() {
+                            t.u(14516);
                         }
                         ).button]));
                         qW.push(aNX);
@@ -24557,6 +24644,124 @@
                         aOC.uz(bA.ra.a4K(aD.data.playerNamesData, 1, "\""));
                         aNX.qS(aOC);
                         qW.push(aNX);
+                    }
+                    this.show = function() {
+                        aOA.show();
+                        this.resize();
+                    }
+                    ;
+                    this.rs = function() {
+                        aOA.rs();
+                    }
+                    ;
+                    this.resize = function() {
+                        aOA.resize();
+                        aOB.resize();
+                    }
+                    ;
+                    this.a2B = function(f8) {
+                        if (f8 === 2) {
+                            aOA.ub[0].qs();
+                        }
+                    }
+                    ;
+                    qu();
+                }
+				function setupKeybind() {
+                    var aOA;
+                    var aOB;
+                    var aOC;
+                    function qu() {
+                        aOA = new uU("Keybinds",[new w(S[2] + L(37),aOD)]);
+                        aOB = new qU(aOA.ua,aOE());
+                    }
+                    function aOD() {
+                        aOF();
+                        if (KeybindType !== 1) {
+                            localStorage.setItem("KeybindData", JSON.stringify(KeybindData));
+							localStorage.setItem("KeybindType", String(KeybindType));
+                        }
+                        t.aNB()[19] = null;
+                        t.a1J();
+                    }
+                    function aPK() {
+                        aOF();
+                        t.u(14516);
+                    }
+                    function aOF() {
+						if (KeybindType !== 1) {
+							return;
+						}
+						if (!aOC) {
+							return;
+						}
+                        bA.qj.a2Keybind(aOC.v1(), KeybindData, 100);
+						localStorage.setItem("KeybindData", JSON.stringify(KeybindData));
+                    }
+                    function aOE() {
+                        var qW = [];
+                        aOG(qW);
+                        
+                           
+                        aOI(qW);
+                           
+                        return qW;
+                        
+                    }
+                    function aOG(qW) {
+                        var aNX = new qE();
+                        aNX.qH(L(262));
+						aNX.qP(new uP({
+							uT: ["Disable", L(265)],
+							value: KeybindType
+						},function(e8) {
+							aOF();
+							KeybindType = e8;
+							if (KeybindType === 1 && !Array.isArray(KeybindData)) {
+								KeybindData = [];
+							}
+							localStorage.setItem("KeybindData", JSON.stringify(KeybindData));
+							localStorage.setItem("KeybindType", String(KeybindType));
+							t.u(14516);
+                        }
+                        ));
+                        
+                        
+                     
+                        qW.push(aNX);
+                    }
+                    function aOI(qW) {
+						if (KeybindType !== 1) {
+							return;
+						}
+                        var aNX = new qE();
+                        aNX.qH(S[18]);
+						aOC = new us(0,1,0,1);
+                        aOC.uz(KeybindData.length ? bA.ra.a4K(KeybindData, 2) : "");
+                        aNX.qS(aOC);
+                        qW.push(aNX);
+                    }
+                    function aPL() {
+                        var aNX = new qE();
+                        aNX.qH(L(268));
+                        for (var aB = 0; aB < bg.a0U.length; aB++) {
+                            var hf = (aB + 1) % bg.a0U.length;
+                            var e = aNX.qN((hf === 0 ? "" : "Team ") + bg.a0U[hf]);
+                            if (aB) {
+                                e.style.marginTop = S[20];
+                            }
+                            aNX.qS(new rP({
+                                e8: -1,
+                                value: aD.data.teamPlayerCount[hf]
+                            },1,0,function(e) {
+                                aOA.ub[1].qv(0);
+                                var playerCount = bL.hv(Math.floor(e.target.value), 0, 512);
+                                e.target.value = playerCount;
+                                aD.data.teamPlayerCount[e.target.aPM] = playerCount;
+                            }
+                            )).e.aPM = hf;
+                        }
+                        return aNX;
                     }
                     this.show = function() {
                         aOA.show();
@@ -31565,6 +31770,7 @@
 					PercentATK = 0;
 					PercentDiff = 0;
 					LastSample = -1;
+					updateKeybindLists();
                     this.dd = function() {
                         this.aGQ = 0;
                         this.aa4 = [];
@@ -31859,6 +32065,7 @@
 					LastSample = -1;
 					TotalPauses = 0;
 					LogArray = []
+					updateKeybindLists()
                     var e8 = 0;
                     var eM = bf.eM;
                     this.aa2 = 0;
