@@ -65,8 +65,8 @@
 				: (localStorage.setItem('Delay', '3'), 3);
 				
 				var SetPercentage = localStorage.getItem('SetPercentage') !== null
-				? (parseInt(localStorage.getItem('SetPercentage'), 10) || 0)
-				: (localStorage.setItem('SetPercentage', '512'), 512);
+				? (parseFloat(localStorage.getItem('SetPercentage'), 10) || 0)
+				: (localStorage.setItem('SetPercentage', '50'), 50);
 				
 				var SecondSeed = localStorage.getItem('SecondSeed') !== null
 				? (parseInt(localStorage.getItem('SecondSeed'), 10) || 0)
@@ -10354,10 +10354,10 @@
                                 return !aD.gw;
                             }
                             if (l7 === 0) {
-							if(AutoP){
+							if(AutoP&&!aD.data.isReplay){
 							this.a2E();
 							}else{
-							if(!SafeQuit){
+							if(!SafeQuit||aD.data.isReplay){
                                 aD.a1U();
                                 return true;
 								
@@ -10399,7 +10399,7 @@
 								
 							}
 							if (LogCycles){
-									if (l7 === (5-(1-SafeQuit)-aD.data.isReplay)) {//<--- 
+									if (l7 === 4+(aD.data.isReplay?-1:SafeQuit)) {//<--- 
 										let titles = ["Tick", "Land", "Troops", "Land Income", "Interest Income", "Received", "Additional", "Land Expense", "Naval","Transmitted", "Taxes"];
 										let rows = Array.isArray(LogArray[0]) ? LogArray : [LogArray];
 										let csv = [titles.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -10444,8 +10444,8 @@
 							}
 							}
 							if(LogCycles){
-							if (lQ >= aR.ew - (4-(1-SafeQuit)-aD.data.isReplay) * (j + a5q * bc.gap)) {//Save Log
-								return 5-(1-SafeQuit)-aD.data.isReplay;   
+							if (lQ >= aR.ew - (4-(1-(aD.data.isReplay?0:SafeQuit))-aD.data.isReplay) * (j + a5q * bc.gap)) {//Save Log
+								return 4+(aD.data.isReplay?-1:SafeQuit);   
 							}
 							}
 							
@@ -10493,14 +10493,14 @@
                         bA.qb.textBaseline(uk, 1);
                         bA.qb.textAlign(uk, 1);
 						
-                        uk.fillText( (AutoP ? "More Buttons": (SafeQuit?"Less Buttons":L(42))), 2 * j, 0.54 * j);
+                        uk.fillText( (AutoP ? "More Buttons": (SafeQuit && !aD.data.isReplay?"Less Buttons":L(42))), 2 * j, 0.54 * j);
 						
                         en = 0.4 * j;
                         aM.a5z(bc.gap + 4 * j + (1.5 * j - en) / 2, aR.ew + 0.3 * j, en);
                     }
                     function a5y() {
 					a60(1);
-						if(!AutoP){
+						if(!AutoP||aD.data.isReplay){
                         if(!aD.data.isReplay){
 						a6b1(2)
 						if(SafeQuit){
@@ -10508,7 +10508,7 @@
 						a6b4(3)
 						}
 						}
-						a6b5(4-(1-SafeQuit)-aD.data.isReplay)
+						a6b5(4-(aD.data.isReplay*2-(aD.data.isReplay?0:(SafeQuit-1))))
 						}
 						
                     }
@@ -12169,7 +12169,7 @@
                     this.dd = function() {
                         hZ = !aD.hB && !aD.gw;
                         a7H = false;
-                        iN = StartPercentage ? SetPercentage/1024 : 0.5;
+                        iN = StartPercentage ? SetPercentage/100 : 0.5;
                         a4I = 0;
                         this.h1 = false;
                         this.resize();
@@ -22876,8 +22876,16 @@
 						aNX.qS(new rP({
 							e8: -1,
                            value: SetPercentage
-                        },1,0,function(e) {
-                            var eSetPercentage = bL.hv(Math.floor(e.target.value), 1, 1024); 
+                        },0,0,function(e) {
+							var raw = e.target.value;
+							if (raw === "" || raw === "." || raw.endsWith(".")) {
+								return;
+							}
+							var eSetPercentage = parseFloat(raw);
+							if (isNaN(eSetPercentage)) {
+								return;
+							}
+                            var eSetPercentage = bL.hv(eSetPercentage, 0, 100); 
 							e.target.value = SetPercentage = eSetPercentage;
 							localStorage.setItem('SetPercentage', SetPercentage.toString());
                         }
