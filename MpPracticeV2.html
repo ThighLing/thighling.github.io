@@ -124,6 +124,8 @@
 				? (parseInt(localStorage.getItem('ZeroDensOnly'), 10) || 0)
 				: (localStorage.setItem('ZeroDensOnly', '0'), 0);
 				
+				var errorPrint = true
+				var paused = false
 				var KeybindCharList = [];
 				var KeybindPercentages = [];	
 				var KeybindType = localStorage.getItem('KeybindType') !== null
@@ -10273,6 +10275,7 @@
 					this.gx = !this.gx;
 					TotalPauses++
 					}
+					paused = this.gx
 					arguments.length === 0||aD.data.isReplay?  AutoP = 0:AutoP = valueP;
 					 firstclick = 0
 						
@@ -12395,14 +12398,14 @@
                     var font;
                     var a8b = 0;
                     var a8c = false;
-                    var a8d = [10, 5, 3, 2, 1.5, 1, 0.75, 0.5, 0.25];
-                    var a8e = 5;
+                    var a8d = [99, 10, 5, 2, 1, 0.5, 0.25, 0.1, 0.056];
+                    var a8e = 4;
                     this.a4x = false;
                     this.dd = function() {
                         if (!aD.gw) {
                             return;
                         }
-                        a8e = 5;
+                        a8e = 4;
                         this.a4x = false;
                         a8c = false;
                         a8a = new rC([0.3, 0.3 / 6],[0.5, 1]);
@@ -12410,7 +12413,7 @@
                     }
                     ;
                     this.a8f = function() {
-                        return a8d[a8e];
+                        return a8d[a8e] >= 99 ?16384: a8d[a8e] ;
                     }
                     ;
                     this.yF = function() {
@@ -12663,7 +12666,7 @@
                         return true;
                     }
                     function a8t(aB) {
-                        return aB === 5 ? "Normal" : ("" + a8d[aB]);
+                        return aB === 4 ? "Normal" : (aB === 0 ? "Instant" : "" + a8d[aB]);
                     }
                 }
                 var hy;
@@ -31778,6 +31781,7 @@
 					PercentATK = 0;
 					PercentDiff = 0;
 					LastSample = -1;
+					errorPrint = true
 					updateKeybindLists();
                     this.dd = function() {
                         this.aGQ = 0;
@@ -31913,6 +31917,7 @@
                     var eM = bf.eM;
                     this.aa2 = 0;
 					LastAttack = 0;
+					errorPrint = true
                     this.dd = function() {
                         aaA = 0;
                         aaB = 0;
@@ -31957,16 +31962,23 @@
                         var aXx;
                         if (bf.eM >= eM) {
                             if (aD.a09 === 2 || aM.gx || !bC.a4x) {
-                                mM();
+                                //mM();
                                 eM = bf.eM;
                             } else {
                                 aXx = bf.aBN / bC.a8f();
                                 if ((bf.eM - eM) / aXx > 16) {
                                     eM = bf.eM - 16 * aXx;
                                 }
-                                while (bf.eM >= eM && aD.a09 !== 2) {
+                                while (bf.eM >= eM && aD.a09 !== 2&& !aM.gx) {
                                     eM += aXx;
-                                    aaG();
+									aaG();
+									if(bC.a8f() === 16384){
+										for(var ijj = 0; ijj <100 && !aM.gx&& aD.a09 !== 2; ijj++){
+											aaH();
+											aaG();
+										}
+										aaH();
+									}									
                                 }
                                 bb.aBy();
                             }
@@ -32035,8 +32047,9 @@
                         var fa = b9.pv.aUC;
                         var aaL = b9.pv.aUD;
                         var aaM = b9.pv.aUE;
-                        if (aaA >= aaM.length) {
+                        if (aaA >= aaM.length && errorPrint) {
                             aN.a1Q("Replay file smaller than expected.");
+							errorPrint = false
                             bC.a2F(false);
                             aD.a09 = 2;
                             return false;
@@ -32058,10 +32071,11 @@
                         return true;
                     }
                     this.a0J = function() {
-                        if (b9.pv.aUE.length - aaA <= 2) {
+                        if (b9.pv.aUE.length - aaA <= 2|| !errorPrint) {
                             return;
                         }
                         aN.a1Q("Replay file larger than expected.");
+						errorPrint = false
                     }
                     ;
                 }
@@ -32074,6 +32088,7 @@
 					TotalPauses = 0;
 					LogArray = []
 					updateKeybindLists()
+					errorPrint = true
                     var e8 = 0;
                     var eM = bf.eM;
                     this.aa2 = 0;
