@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v4_linehash: # invisible hit area spans the active line width -->
+  <!-- controls_v18_monospace_tripleclick: adds monospace Notepad++ style triple-click line selection -->
   <style>
     :root {
       --panel-width: 260px;
@@ -85,19 +85,28 @@
       gap: 6px;
     }
 
-    #monospaceControl {
-      margin-top: auto;
+    #monospaceControl,
+    #autoBoldControl {
       display: flex;
       align-items: center;
       gap: 7px;
       color: #ddd;
       cursor: pointer;
       user-select: none;
+    }
+
+    #monospaceControl {
+      margin-top: auto;
       border-top: 1px solid #303030;
       padding-top: 8px;
     }
 
-    #sidePanel #monospaceToggle {
+    #autoBoldControl {
+      margin-top: 0;
+    }
+
+    #sidePanel #monospaceToggle,
+    #sidePanel #autoBoldToggle {
       width: auto;
       margin: 0;
       accent-color: #fff;
@@ -353,7 +362,7 @@
       border-radius: 3px;
       background: #050505;
       color: #fff;
-      font: 22px/1 system-ui, sans-serif;
+      font: 18px/1 system-ui, sans-serif;
       cursor: pointer;
       text-align: center;
       overflow: hidden;
@@ -467,6 +476,10 @@
         <input id="monospaceToggle" type="checkbox" />
         <span>Monospace</span>
       </label>
+      <label id="autoBoldControl" title="When # is toggled on, bold the whole line; when # is toggled off, unbold the whole line">
+        <input id="autoBoldToggle" type="checkbox" />
+        <span># auto bold</span>
+      </label>
     </aside>
 
     <main id="viewport">
@@ -523,6 +536,7 @@
       const newName = document.getElementById("newName");
       const sortSelect = document.getElementById("sortSelect");
       const monospaceToggle = document.getElementById("monospaceToggle");
+      const autoBoldToggle = document.getElementById("autoBoldToggle");
       const instanceMenu = document.getElementById("instanceMenu");
       const renameInstanceButton = document.getElementById("renameInstanceButton");
       const duplicateInstanceButton = document.getElementById("duplicateInstanceButton");
@@ -544,7 +558,13 @@
       let lastInstanceClick = null;
       let activeFormatBoxId = null;
       let activeLineEl = null;
+      let controlHitRecords = [];
+      let controlDownRecord = null;
       let suppressNextBoxBlurSave = false;
+      let nppPointerHistory = null;
+      let nppRunDragState = null;
+      let nppLineDragState = null;
+      let nppSuppressDblClickUntil = 0;
 
       document.execCommand?.("styleWithCSS", false, false);
       document.execCommand?.("defaultParagraphSeparator", false, "div");
@@ -568,6 +588,7 @@
           createdAt: t,
           modifiedAt: t,
           monospace: Boolean(options.monospace),
+          hashAutoBold: Boolean(options.hashAutoBold),
           view: { panX: 0, panY: 0, zoom: 1 },
           boxes: [],
           links: []
@@ -597,6 +618,7 @@
         instance.links ||= [];
         instance.view ||= { panX: 0, panY: 0, zoom: 1 };
         instance.monospace = Boolean(instance.monospace);
+        instance.hashAutoBold = Boolean(instance.hashAutoBold);
         for (const box of instance.boxes) migrateBox(box);
       }
 
@@ -890,6 +912,7 @@
           createdAt: t,
           modifiedAt: t,
           monospace: Boolean(source.monospace),
+          hashAutoBold: Boolean(source.hashAutoBold),
           view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
           boxes: [],
           links: []
@@ -969,6 +992,58 @@
         return { x: clientX - rect.left, y: clientY - rect.top };
       }
 
+      function pointInsideAnyBox(clientX, clientY, extra = 0) {
+        // First check the rendered DOM rectangles. This covers the visible box,
+        // including padding, text lines, and any browser layout quirks.
+        for (const box of world.querySelectorAll(".box")) {
+          const rect = box.getBoundingClientRect();
+          if (
+            clientX >= rect.left - extra &&
+            clientX <= rect.right + extra &&
+            clientY >= rect.top - extra &&
+            clientY <= rect.bottom + extra
+          ) return true;
+        }
+
+        // Then check the saved world-space rectangles. This is intentionally
+        // independent from event.target so the first editable line, empty lines,
+        // and padding cannot be mistaken for the background during dblclick.
+        const point = screenToWorld(clientX, clientY);
+        const worldExtra = extra / Math.max(zoom, 0.0001);
+        for (const data of currentInstance().boxes || []) {
+          const w = Number.isFinite(data.w) ? data.w : 24;
+          const h = Number.isFinite(data.h) ? data.h : 24;
+          if (
+            point.x >= data.x - worldExtra &&
+            point.x <= data.x + w + worldExtra &&
+            point.y >= data.y - worldExtra &&
+            point.y <= data.y + h + worldExtra
+          ) return true;
+        }
+        return false;
+      }
+
+      function isEditingControlTarget(target) {
+        return Boolean(target && (
+          formatToolbar.contains(target) ||
+          lineButton.contains(target)
+        ));
+      }
+
+      function clearBrowserTextSelection() {
+        const selection = window.getSelection?.();
+        if (selection && !selection.isCollapsed) selection.removeAllRanges();
+      }
+
+
+      let lastPointerDownInsideBox = { time: 0, x: 0, y: 0 };
+      document.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        if (pointInsideAnyBox(event.clientX, event.clientY, 10)) {
+          lastPointerDownInsideBox = { time: performance.now(), x: event.clientX, y: event.clientY };
+        }
+      }, true);
+
       function setViewKeepingWorldAtClient(worldPoint, clientX, clientY) {
         const point = screenToViewport(clientX, clientY);
         panX = point.x - worldPoint.x * zoom;
@@ -980,6 +1055,7 @@
         world.classList.toggle("monospaceText", mono);
         measureBox.classList.toggle("monospaceMeasure", mono);
         monospaceToggle.checked = mono;
+        autoBoldToggle.checked = Boolean(currentInstance().hashAutoBold);
       }
 
       function renderAll() {
@@ -1098,6 +1174,11 @@
           });
 
           box.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+
+          box.addEventListener("dblclick", event => {
             event.preventDefault();
             event.stopPropagation();
           });
@@ -1343,11 +1424,13 @@
             event.preventDefault();
             event.stopPropagation();
             document.activeElement?.blur?.();
+            clearBrowserTextSelection();
           });
           hit.addEventListener("click", event => {
             event.preventDefault();
             event.stopPropagation();
             document.activeElement?.blur?.();
+            clearBrowserTextSelection();
             hideEditingControls();
             selectLink(link.id);
           });
@@ -1491,93 +1574,105 @@
       }
 
       function clearControlHitZones() {
-        if (!controlHitLayer) return;
-        controlHitLayer.hidden = true;
-        controlHitLayer.replaceChildren();
+        controlHitRecords = [];
+        controlDownRecord = null;
+        if (controlHitLayer) {
+          controlHitLayer.hidden = true;
+          controlHitLayer.replaceChildren();
+        }
         setHitHoveredControl(null);
         document.body.classList.remove("control-hit");
       }
 
       function syncControlHitZones() {
-        if (!controlHitLayer) return;
-        controlHitLayer.replaceChildren();
+        // No real overlay rectangles are created here. Older versions made one
+        // merged transparent rectangle for the controls, and that rectangle could
+        // cover the first editable line of the box. This version only stores
+        // coordinate hit records and lets pointer events continue to the box.
+        controlHitRecords = [];
+        if (controlHitLayer) {
+          controlHitLayer.hidden = true;
+          controlHitLayer.replaceChildren();
+        }
+
+        const activeBox = activeFormatBoxId ? getBoxElement(activeFormatBoxId) : null;
+        const activeBoxRect = activeBox ? activeBox.getBoundingClientRect() : null;
 
         const controls = [];
         if (!formatToolbar.hidden) {
           for (const button of formatToolbar.querySelectorAll("button[data-format]")) {
-            controls.push({ type: "format", button, rect: button.getBoundingClientRect() });
+            const rect = button.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) controls.push({ type: "format", button, rect });
           }
         }
         if (!lineButton.hidden) {
-          const lineRect = activeLineEl?.getBoundingClientRect?.();
-          const box = activeFormatBoxId ? getBoxElement(activeFormatBoxId) : null;
-          const boxRect = box?.getBoundingClientRect?.();
-          let lineHitRect = null;
-          if (lineRect && boxRect) {
-            const lineVerticalPad = Math.max(CONTROL_HIT_MARGIN, 8);
-            lineHitRect = {
-              left: Math.min(lineButton.getBoundingClientRect().left - CONTROL_HIT_MARGIN, boxRect.left),
-              top: lineRect.top - lineVerticalPad,
-              right: boxRect.right + CONTROL_HIT_MARGIN,
-              bottom: lineRect.bottom + lineVerticalPad
-            };
-          }
-          controls.push({
-            type: "line",
-            button: lineButton,
-            rect: lineButton.getBoundingClientRect(),
-            expandedOverride: lineHitRect
-          });
+          const rect = lineButton.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) controls.push({ type: "line", button: lineButton, rect });
         }
 
-        const usableControls = controls.filter(control => control.rect.width > 0 && control.rect.height > 0);
-        if (!usableControls.length) {
-          controlHitLayer.hidden = true;
-          setHitHoveredControl(null);
-          document.body.classList.remove("control-hit");
-          return;
-        }
-
-        controlHitLayer.hidden = false;
         const margin = CONTROL_HIT_MARGIN;
-        const vpRect = viewport.getBoundingClientRect();
-        const records = usableControls.map(control => ({
-          ...control,
-          expanded: control.expandedOverride || {
+        controlHitRecords = controls.map(control => {
+          const expanded = {
             left: control.rect.left - margin,
             top: control.rect.top - margin,
             right: control.rect.right + margin,
             bottom: control.rect.bottom + margin
-          }
-        }));
+          };
 
-        const clusters = [];
-        for (const record of records) {
-          let placed = false;
-          for (const cluster of clusters) {
-            if (rectsTouch(cluster.bounds, record.expanded)) {
-              cluster.records.push(record);
-              cluster.bounds = unionRects(cluster.bounds, record.expanded);
-              placed = true;
-              break;
-            }
+          // Keep the invisible margin outside the editable box itself.
+          // Format buttons live above the box, so their margin cannot extend down into it.
+          // The # button lives to the left, so its margin cannot extend right into it.
+          if (activeBoxRect) {
+            if (control.type === "format") expanded.bottom = Math.min(expanded.bottom, activeBoxRect.top - 1);
+            if (control.type === "line") expanded.right = Math.min(expanded.right, activeBoxRect.left - 1);
           }
-          if (!placed) clusters.push({ records: [record], bounds: { ...record.expanded } });
+
+          // If clipping would invert a record, keep the visible button clickable.
+          if (expanded.right < expanded.left) { expanded.left = control.rect.left; expanded.right = control.rect.right; }
+          if (expanded.bottom < expanded.top) { expanded.top = control.rect.top; expanded.bottom = control.rect.bottom; }
+
+          return { ...control, expanded };
+        });
+      }
+
+      function getEditingControlAtPoint(clientX, clientY) {
+        if (!controlHitRecords.length) return null;
+
+        const activeBox = activeFormatBoxId ? getBoxElement(activeFormatBoxId) : null;
+        if (activeBox) {
+          const boxRect = activeBox.getBoundingClientRect();
+          // The editable box wins over every invisible control margin.
+          // This is what fixes first-line clicks: if the pointer is inside the
+          // visible box, it is always treated as text editing, never background/control.
+          if (clientX >= boxRect.left && clientX <= boxRect.right && clientY >= boxRect.top && clientY <= boxRect.bottom) {
+            return null;
+          }
         }
 
-        // Merge once more in case adding a later record bridged two earlier clusters.
-        for (let i = 0; i < clusters.length; i += 1) {
-          for (let j = i + 1; j < clusters.length; j += 1) {
-            if (rectsTouch(clusters[i].bounds, clusters[j].bounds)) {
-              clusters[i].records.push(...clusters[j].records);
-              clusters[i].bounds = unionRects(clusters[i].bounds, clusters[j].bounds);
-              clusters.splice(j, 1);
-              j -= 1;
-            }
+        const insideVisible = controlHitRecords.filter(record => (
+          clientX >= record.rect.left && clientX <= record.rect.right &&
+          clientY >= record.rect.top && clientY <= record.rect.bottom
+        ));
+        const choices = insideVisible.length ? insideVisible : controlHitRecords.filter(record => (
+          clientX >= record.expanded.left && clientX <= record.expanded.right &&
+          clientY >= record.expanded.top && clientY <= record.expanded.bottom
+        ));
+        if (!choices.length) return null;
+
+        let best = choices[0];
+        let bestDistance = Infinity;
+        for (const record of choices) {
+          const centerX = record.rect.left + record.rect.width / 2;
+          const centerY = record.rect.top + record.rect.height / 2;
+          const dx = clientX - centerX;
+          const dy = clientY - centerY;
+          const distance = dx * dx + dy * dy;
+          if (distance < bestDistance) {
+            best = record;
+            bestDistance = distance;
           }
         }
-
-        for (const cluster of clusters) addControlHitZone(cluster, vpRect);
+        return best;
       }
 
       function rectsTouch(a, b) {
@@ -1746,6 +1841,278 @@
         if (line) activeLineEl = line;
       }
 
+      function nppCharKind(char) {
+        if (char === " " || char === "\t" || char === "\u00a0") return "space";
+        try {
+          if (/^[\p{L}\p{N}_]$/u.test(char)) return "word";
+        } catch (e) {
+          if (/^[A-Za-z0-9_]$/.test(char)) return "word";
+        }
+        return "punct";
+      }
+
+      function lineTextNodes(line) {
+        const nodes = [];
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while ((node = walker.nextNode())) nodes.push(node);
+        return nodes;
+      }
+
+      function lineOffsetFromDomPosition(line, node, offset) {
+        try {
+          const range = document.createRange();
+          range.setStart(line, 0);
+          range.setEnd(node, offset);
+          return range.toString().length;
+        } catch (e) {
+          return 0;
+        }
+      }
+
+      function domPositionFromLineOffset(line, targetOffset) {
+        const nodes = lineTextNodes(line);
+        let remaining = Math.max(0, targetOffset);
+        for (const node of nodes) {
+          const length = node.nodeValue.length;
+          if (remaining <= length) return { node, offset: remaining };
+          remaining -= length;
+        }
+        const last = nodes[nodes.length - 1];
+        if (last) return { node: last, offset: last.nodeValue.length };
+        return { node: line, offset: line.childNodes.length };
+      }
+
+      function rangeFromPoint(clientX, clientY) {
+        if (document.caretPositionFromPoint) {
+          const pos = document.caretPositionFromPoint(clientX, clientY);
+          if (!pos) return null;
+          const range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+          range.collapse(true);
+          return range;
+        }
+        if (document.caretRangeFromPoint) return document.caretRangeFromPoint(clientX, clientY);
+        return null;
+      }
+
+      function boxFromPointOrTarget(event) {
+        const byTarget = event.target?.closest?.(".box");
+        if (byTarget) return byTarget;
+        for (const box of world.querySelectorAll(".box")) {
+          const rect = box.getBoundingClientRect();
+          if (
+            event.clientX >= rect.left && event.clientX <= rect.right &&
+            event.clientY >= rect.top && event.clientY <= rect.bottom
+          ) return box;
+        }
+        return null;
+      }
+
+      function nppRunAtPoint(clientX, clientY, box) {
+        const range = rangeFromPoint(clientX, clientY);
+        const line = (range && closestLine(range.startContainer, box)) || lineFromExtendedPoint(clientX, clientY, box);
+        if (!line || !box.contains(line)) return null;
+
+        const text = line.textContent || "";
+        if (!text.length) return null;
+
+        let offset = 0;
+        if (range && line.contains(range.startContainer)) {
+          offset = lineOffsetFromDomPosition(line, range.startContainer, range.startOffset);
+        } else {
+          offset = text.length;
+        }
+        offset = clamp(offset, 0, text.length);
+        let index = offset >= text.length ? text.length - 1 : offset;
+        index = clamp(index, 0, text.length - 1);
+
+        const kind = nppCharKind(text[index]);
+        let start = index;
+        let end = index + 1;
+        while (start > 0 && nppCharKind(text[start - 1]) === kind) start -= 1;
+        while (end < text.length && nppCharKind(text[end]) === kind) end += 1;
+
+        const startPos = domPositionFromLineOffset(line, start);
+        const endPos = domPositionFromLineOffset(line, end);
+        return { box, line, kind, start, end, startPos, endPos };
+      }
+
+      function compareDomPositions(a, b) {
+        const rangeA = document.createRange();
+        const rangeB = document.createRange();
+        rangeA.setStart(a.node, a.offset);
+        rangeA.collapse(true);
+        rangeB.setStart(b.node, b.offset);
+        rangeB.collapse(true);
+        return rangeA.compareBoundaryPoints(Range.START_TO_START, rangeB);
+      }
+
+      function selectBetweenNppRuns(anchorRun, currentRun) {
+        if (!anchorRun || !currentRun || anchorRun.box !== currentRun.box) return false;
+
+        let startPos = anchorRun.startPos;
+        let endPos = currentRun.endPos;
+        if (compareDomPositions(currentRun.startPos, anchorRun.startPos) < 0) {
+          startPos = currentRun.startPos;
+          endPos = anchorRun.endPos;
+        }
+
+        const selectionRange = document.createRange();
+        selectionRange.setStart(startPos.node, startPos.offset);
+        selectionRange.setEnd(endPos.node, endPos.offset);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(selectionRange);
+        activeLineEl = currentRun.line;
+        updateToolbarState();
+        positionEditingControls();
+        return true;
+      }
+
+      function selectNppRunAtPoint(event, box) {
+        const run = nppRunAtPoint(event.clientX, event.clientY, box);
+        if (!run) return false;
+        return selectBetweenNppRuns(run, run);
+      }
+
+      function nppLineAtPoint(clientX, clientY, box) {
+        const range = rangeFromPoint(clientX, clientY);
+        const line = (range && closestLine(range.startContainer, box)) || lineFromExtendedPoint(clientX, clientY, box);
+        if (!line || !box.contains(line)) return null;
+        return line;
+      }
+
+      function lineStartPosition(line) {
+        return { node: line, offset: 0 };
+      }
+
+      function lineEndPosition(line) {
+        return { node: line, offset: line.childNodes.length };
+      }
+
+      function selectBetweenNppLines(anchorLine, currentLine, box) {
+        if (!anchorLine || !currentLine || !box || !box.contains(anchorLine) || !box.contains(currentLine)) return false;
+
+        let startLine = anchorLine;
+        let endLine = currentLine;
+        if (compareDomPositions(lineStartPosition(currentLine), lineStartPosition(anchorLine)) < 0) {
+          startLine = currentLine;
+          endLine = anchorLine;
+        }
+
+        const selectionRange = document.createRange();
+        selectionRange.setStart(startLine, 0);
+        selectionRange.setEnd(endLine, endLine.childNodes.length);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(selectionRange);
+        activeLineEl = currentLine;
+        updateToolbarState();
+        positionEditingControls();
+        return true;
+      }
+
+      function startNppLineDragSelection(event, box) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        activeFormatBoxId = box.dataset.id;
+        selectedLinkId = null;
+        box.focus({ preventScroll: true });
+        showEditingControls(box.dataset.id);
+        const line = nppLineAtPoint(event.clientX, event.clientY, box);
+        if (!line) return false;
+        selectBetweenNppLines(line, line, box);
+        nppSuppressDblClickUntil = performance.now() + 700;
+        nppLineDragState = {
+          pointerId: event.pointerId,
+          box,
+          anchorLine: line,
+          currentLine: line,
+          moved: false
+        };
+        try { box.setPointerCapture(event.pointerId); } catch (e) {}
+        return true;
+      }
+
+      function startNppRunDragSelection(event, box) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        activeFormatBoxId = box.dataset.id;
+        selectedLinkId = null;
+        box.focus({ preventScroll: true });
+        showEditingControls(box.dataset.id);
+        const run = nppRunAtPoint(event.clientX, event.clientY, box);
+        if (!run) return false;
+        selectBetweenNppRuns(run, run);
+        nppRunDragState = {
+          pointerId: event.pointerId,
+          box,
+          anchorRun: run,
+          currentRun: run,
+          moved: false
+        };
+        try { box.setPointerCapture(event.pointerId); } catch (e) {}
+        return true;
+      }
+
+      document.addEventListener("pointerdown", event => {
+        if (!currentInstance().monospace) return;
+        if (event.button !== 0) return;
+        if (isEditingControlTarget(event.target)) return;
+        const box = boxFromPointOrTarget(event);
+        if (!box) return;
+
+        const now = performance.now();
+        const sameSpot = nppPointerHistory &&
+          nppPointerHistory.boxId === box.dataset.id &&
+          now - nppPointerHistory.time < 550 &&
+          Math.hypot(event.clientX - nppPointerHistory.x, event.clientY - nppPointerHistory.y) < 8;
+        const isThirdClick = event.detail >= 3;
+        const isSecondClick = event.detail >= 2 || sameSpot;
+
+        nppPointerHistory = {
+          boxId: box.dataset.id,
+          time: now,
+          x: event.clientX,
+          y: event.clientY
+        };
+
+        if (isThirdClick) {
+          nppRunDragState = null;
+          startNppLineDragSelection(event, box);
+          return;
+        }
+
+        if (!isSecondClick) return;
+        startNppRunDragSelection(event, box);
+      }, true);
+
+      document.addEventListener("dblclick", event => {
+        if (!currentInstance().monospace) return;
+        if (event.button !== 0) return;
+        if (isEditingControlTarget(event.target)) return;
+        const box = boxFromPointOrTarget(event);
+        if (!box) return;
+
+        if (performance.now() < nppSuppressDblClickUntil) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        activeFormatBoxId = box.dataset.id;
+        selectedLinkId = null;
+        box.focus({ preventScroll: true });
+        showEditingControls(box.dataset.id);
+        selectNppRunAtPoint(event, box);
+      }, true);
+
       function closestLine(node, box) {
         let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
         while (el && el !== box) {
@@ -1814,7 +2181,7 @@
 
       function updateLineHoverFromPointer(event) {
         if (!activeFormatBoxId || dragState || panState || selectState) return;
-        if (formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target)) return;
+        if (isEditingControlTarget(event.target)) return;
         const box = getBoxElement(activeFormatBoxId);
         if (!box || document.activeElement !== box) return;
         const line = lineFromExtendedPoint(event.clientX, event.clientY, box);
@@ -1824,13 +2191,38 @@
         updateLineButtonState();
       }
 
+      function setWholeLineBold(line, shouldBold) {
+        if (!line) return;
+        if (shouldBold) {
+          const childNodes = Array.from(line.childNodes);
+          const alreadyOneBoldWrapper = childNodes.length === 1 &&
+            childNodes[0].nodeType === Node.ELEMENT_NODE &&
+            ["B", "STRONG"].includes(childNodes[0].tagName);
+          if (!alreadyOneBoldWrapper) {
+            const wrapper = document.createElement("b");
+            while (line.firstChild) wrapper.appendChild(line.firstChild);
+            line.appendChild(wrapper);
+          }
+          return;
+        }
+
+        for (const boldNode of Array.from(line.querySelectorAll("b,strong"))) {
+          while (boldNode.firstChild) boldNode.parentNode.insertBefore(boldNode.firstChild, boldNode);
+          boldNode.remove();
+        }
+      }
+
       function toggleCurrentLineBig() {
         const box = getBoxElement(activeFormatBoxId);
         const data = getBoxData(activeFormatBoxId);
         if (!box || !data) return;
         if (!activeLineEl || !box.contains(activeLineEl)) updateActiveLineFromSelection();
         if (!activeLineEl) return;
-        activeLineEl.classList.toggle("bigLine");
+        const isNowBig = activeLineEl.classList.toggle("bigLine");
+        if (currentInstance().hashAutoBold) {
+          setWholeLineBold(activeLineEl, isNowBig);
+        }
+        normalizeBoxLines(box);
         afterBoxEdited(box, data, true);
         box.focus();
       }
@@ -1857,6 +2249,30 @@
       }
 
       document.addEventListener("pointermove", event => {
+        if (nppLineDragState && event.pointerId === nppLineDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentLine = nppLineAtPoint(event.clientX, event.clientY, nppLineDragState.box);
+          if (currentLine) {
+            nppLineDragState.currentLine = currentLine;
+            nppLineDragState.moved = true;
+            selectBetweenNppLines(nppLineDragState.anchorLine, currentLine, nppLineDragState.box);
+          }
+          return;
+        }
+
+        if (nppRunDragState && event.pointerId === nppRunDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          const currentRun = nppRunAtPoint(event.clientX, event.clientY, nppRunDragState.box);
+          if (currentRun) {
+            nppRunDragState.currentRun = currentRun;
+            nppRunDragState.moved = true;
+            selectBetweenNppRuns(nppRunDragState.anchorRun, currentRun);
+          }
+          return;
+        }
+
         if (dragState && event.pointerId === dragState.pointerId) {
           const screenDx = event.clientX - dragState.startX;
           const screenDy = event.clientY - dragState.startY;
@@ -1918,6 +2334,34 @@
       });
 
       document.addEventListener("pointerup", event => {
+        if (nppLineDragState && event.pointerId === nppLineDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          if (nppLineDragState.currentLine) {
+            selectBetweenNppLines(nppLineDragState.anchorLine, nppLineDragState.currentLine, nppLineDragState.box);
+          }
+          nppSuppressDblClickUntil = performance.now() + 700;
+          try { nppLineDragState.box.releasePointerCapture(nppLineDragState.pointerId); } catch (e) {}
+          nppLineDragState = null;
+          return;
+        }
+
+        if (nppRunDragState && event.pointerId === nppRunDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          if (nppRunDragState.currentRun) {
+            selectBetweenNppRuns(nppRunDragState.anchorRun, nppRunDragState.currentRun);
+          }
+          if (nppRunDragState.moved) {
+            nppSuppressDblClickUntil = performance.now() + 700;
+          }
+          try { nppRunDragState.box.releasePointerCapture(nppRunDragState.pointerId); } catch (e) {}
+          nppRunDragState = null;
+          return;
+        }
+
         if (dragState && event.pointerId === dragState.pointerId) {
           const wasMoved = dragState.moved;
           const element = dragState.element;
@@ -1965,11 +2409,13 @@
       viewport.addEventListener("pointerdown", event => {
         const onBox = event.target.closest && event.target.closest(".box");
         const onLink = event.target.closest && event.target.closest(".linkHit");
-        if (onBox || onLink || formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target)) return;
+        const insideBoxByCoords = pointInsideAnyBox(event.clientX, event.clientY, 8);
+        if (onBox || insideBoxByCoords || onLink || isEditingControlTarget(event.target)) return;
 
         if (event.button === 0) {
           hideInstanceMenu();
           document.activeElement?.blur?.();
+          clearBrowserTextSelection();
           hideEditingControls();
           event.preventDefault();
           const grabWorld = screenToWorld(event.clientX, event.clientY);
@@ -1983,6 +2429,7 @@
           hideInstanceMenu();
           event.preventDefault();
           document.activeElement?.blur?.();
+          clearBrowserTextSelection();
           hideEditingControls();
           const additive = event.ctrlKey || event.metaKey;
           selectedLinkId = null;
@@ -1999,11 +2446,43 @@
 
       viewport.addEventListener("mousemove", updateLineHoverFromPointer);
 
+      function isTrueBackgroundDoubleClick(event) {
+        const target = event.target;
+        if (!target) return false;
+
+        // If either click of the double-click happened in a box, do not create a
+        // new box. This specifically fixes the first line/padding area of editable
+        // boxes being interpreted as the background by some browsers.
+        const recentBoxPointerDown =
+          performance.now() - lastPointerDownInsideBox.time < 700 &&
+          Math.abs(event.clientX - lastPointerDownInsideBox.x) < 12 &&
+          Math.abs(event.clientY - lastPointerDownInsideBox.y) < 12;
+        if (recentBoxPointerDown) return false;
+
+        if (pointInsideAnyBox(event.clientX, event.clientY, 10)) return false;
+        if (target.closest && (
+          target.closest(".box") ||
+          target.closest(".box *") ||
+          target.closest(".linkHit") ||
+          target.closest("#formatToolbar") ||
+          target.closest("#lineButton") ||
+          target.closest("#controlHitLayer") ||
+          target.closest("#marquee")
+        )) return false;
+        return target === viewport || target === world;
+      }
+
       viewport.addEventListener("dblclick", event => {
-        if (event.target.closest && (event.target.closest(".box") || event.target.closest(".linkHit") || formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target))) return;
+        if (pointInsideAnyBox(event.clientX, event.clientY, 10)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (!isTrueBackgroundDoubleClick(event)) return;
         event.preventDefault();
+        clearBrowserTextSelection();
         createBoxAt(event.clientX, event.clientY);
-      });
+      }, true);
 
       viewport.addEventListener("contextmenu", event => { event.preventDefault(); });
 
@@ -2113,6 +2592,39 @@
         toggleCurrentLineBig();
       });
 
+      document.addEventListener("pointermove", event => {
+        const control = getEditingControlAtPoint(event.clientX, event.clientY);
+        setHitHoveredControl(control?.button || null);
+        document.body.classList.toggle("control-hit", Boolean(control));
+      }, true);
+
+      document.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        const control = getEditingControlAtPoint(event.clientX, event.clientY);
+        if (!control) return;
+        event.preventDefault();
+        event.stopPropagation();
+        controlDownRecord = control;
+        setHitHoveredControl(control.button);
+      }, true);
+
+      document.addEventListener("click", event => {
+        const control = getEditingControlAtPoint(event.clientX, event.clientY) || controlDownRecord;
+        controlDownRecord = null;
+        if (!control) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setHitHoveredControl(control.button);
+        executeEditingControl(control);
+      }, true);
+
+      document.addEventListener("pointerdown", event => {
+        const insideBoxByTarget = event.target.closest?.(".box");
+        const insideBoxByCoords = pointInsideAnyBox(event.clientX, event.clientY, 8);
+        if (insideBoxByTarget || insideBoxByCoords || isEditingControlTarget(event.target)) return;
+        clearBrowserTextSelection();
+      }, true);
+
       document.addEventListener("pointerdown", event => {
         if (!instanceMenu.hidden && !instanceMenu.contains(event.target)) hideInstanceMenu();
       });
@@ -2145,7 +2657,11 @@
       newForm.addEventListener("submit", event => {
         event.preventDefault();
         const requestedName = newName.value;
-        const instance = blankInstance(uniqueName(requestedName), { monospace: Boolean(currentInstance().monospace) });
+        const sourceInstance = currentInstance();
+        const instance = blankInstance(uniqueName(requestedName), {
+          monospace: Boolean(sourceInstance.monospace),
+          hashAutoBold: Boolean(sourceInstance.hashAutoBold)
+        });
         store.instances.push(instance);
         store.currentId = instance.id;
         clearSelection();
@@ -2170,6 +2686,13 @@
         renderBoxes();
         renderLines();
         positionEditingControls();
+      });
+
+      autoBoldToggle.addEventListener("change", () => {
+        const inst = currentInstance();
+        inst.hashAutoBold = autoBoldToggle.checked;
+        saveNow(false);
+        syncInstanceControls();
       });
 
       window.addEventListener("beforeunload", () => saveNow(false));
