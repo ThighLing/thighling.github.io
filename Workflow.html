@@ -1,0 +1,1489 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bare Bones Boxes</title>
+  <style>
+    :root {
+      --panel-width: 260px;
+      --grid-size: 24px;
+      --grid-x: 0px;
+      --grid-y: 0px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+      background: #000;
+    }
+
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #sidePanel {
+      width: var(--panel-width);
+      min-width: var(--panel-width);
+      height: 100vh;
+      background: #101010;
+      color: #f2f2f2;
+      border-right: 1px solid #303030;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 13px;
+      z-index: 20;
+    }
+
+    #sidePanel button,
+    #sidePanel input,
+    #sidePanel select {
+      width: 100%;
+      font: inherit;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 7px;
+      background: #1c1c1c;
+      color: #fff;
+    }
+
+    #sidePanel button {
+      cursor: pointer;
+      background: #222;
+    }
+
+    #sidePanel button:hover,
+    .instanceItem:hover { background: #2a2a2a; }
+
+    #newForm {
+      display: grid;
+      grid-template-columns: 1fr 64px;
+      gap: 6px;
+    }
+
+    #newForm[hidden] { display: none; }
+
+    #newForm input,
+    #newForm button { width: auto; }
+
+    #instanceList {
+      overflow-y: auto;
+      min-height: 0;
+      border-top: 1px solid #303030;
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .instanceItem {
+      border: 1px solid #333;
+      border-radius: 5px;
+      padding: 8px;
+      cursor: pointer;
+      user-select: none;
+      background: #171717;
+      display: block;
+      min-height: 78px;
+      height: 78px;
+      overflow: hidden;
+    }
+
+    .instanceItem.active {
+      outline: 1px solid #fff;
+      background: #262626;
+    }
+
+    .instanceNameRow {
+      height: 22px;
+      line-height: 20px;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .instanceName {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      max-width: 100%;
+      height: 20px;
+      line-height: 20px;
+      display: inline-block;
+      flex: 0 1 auto;
+    }
+
+    .instanceMeta {
+      color: #aaa;
+      font-size: 11px;
+      line-height: 1.25;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      margin-top: 5px;
+    }
+
+    .instanceMeta > div {
+      display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #sidePanel input.renameInput {
+      width: var(--rename-width, 80px) !important;
+      max-width: 100%;
+      min-width: 48px;
+      height: 20px;
+      margin: 0;
+      padding: 1px 4px;
+      font: inherit;
+      font-weight: 600;
+      line-height: 16px;
+      border: 1px solid #777;
+      border-radius: 3px;
+      background: #222;
+      color: #fff;
+      display: inline-block;
+      flex: 0 0 auto;
+      vertical-align: top;
+    }
+
+    #viewport {
+      position: relative;
+      flex: 1;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #000;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.085) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.085) 1px, transparent 1px);
+      background-size: var(--grid-size) var(--grid-size);
+      background-position: var(--grid-x) var(--grid-y);
+      cursor: grab;
+    }
+
+    #viewport.panning { cursor: grabbing; }
+    #viewport.selecting { cursor: crosshair; }
+
+    #world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 0;
+      transform-origin: 0 0;
+    }
+
+    #lines {
+      position: absolute;
+      left: 0;
+      top: 0;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .linkLine {
+      pointer-events: none;
+    }
+
+    .linkLine.selected {
+      stroke-width: 4;
+    }
+
+    .linkHit {
+      pointer-events: stroke;
+      cursor: pointer;
+    }
+
+    .box {
+      position: absolute;
+      z-index: 2;
+      min-width: 24px;
+      min-height: 24px;
+      max-width: 480px;
+      padding: 3px 5px;
+      border: 1px solid #222;
+      border-radius: 0;
+      background: #fff;
+      color: #000;
+      font: 16px/18px system-ui, sans-serif;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      outline: none;
+      resize: none;
+      overflow: hidden;
+      cursor: text;
+      user-select: text;
+    }
+
+    .box.selected {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+
+    .box.linkArmed {
+      box-shadow: 0 0 0 5px rgba(255,255,255,0.22);
+    }
+
+    .box.draggingBox {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    #marquee {
+      position: absolute;
+      border: 1px solid rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.12);
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+
+    #measureBox {
+      position: absolute;
+      left: -100000px;
+      top: -100000px;
+      visibility: hidden;
+      min-width: 24px;
+      min-height: 24px;
+      max-width: 480px;
+      padding: 3px 5px;
+      border: 1px solid transparent;
+      font: 16px/18px system-ui, sans-serif;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    #instanceMenu {
+      position: fixed;
+      z-index: 1000;
+      min-width: 135px;
+      background: #151515;
+      border: 1px solid #555;
+      border-radius: 5px;
+      padding: 4px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+    }
+
+    #instanceMenu[hidden] { display: none; }
+
+    #instanceMenu button {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 3px;
+      background: transparent;
+      color: #fff;
+      padding: 8px 10px;
+      font: 13px system-ui, sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #instanceMenu button:hover { background: #2a2a2a; }
+
+    #instanceMenu button.danger {
+      color: #ffb3b3;
+      background: rgba(160, 32, 32, 0.16);
+    }
+
+    #instanceMenu button.danger:hover { background: rgba(190, 45, 45, 0.34); }
+
+    body.noSelect, body.noSelect * {
+      user-select: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidePanel">
+      <form id="newForm">
+        <input id="newName" type="text" autocomplete="off" value="Instance" aria-label="Instance name" />
+        <button type="submit">Create</button>
+      </form>
+      <select id="sortSelect" title="Sort instances">
+        <option value="modified">Sort: recently modified</option>
+        <option value="created">Sort: date created</option>
+        <option value="name">Sort: name</option>
+      </select>
+      <div id="instanceList"></div>
+    </aside>
+
+    <main id="viewport">
+      <div id="world">
+        <svg id="lines">
+          <defs>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#e8e8e8"></path>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <div id="marquee"></div>
+      <div id="measureBox"></div>
+    </main>
+  </div>
+
+  <div id="instanceMenu" hidden>
+    <button id="renameInstanceButton" type="button">Rename</button>
+    <button id="duplicateInstanceButton" type="button">Duplicate</button>
+    <button id="deleteInstanceButton" class="danger" type="button">Delete</button>
+  </div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = "bare-bones-box-map-v1";
+      const BASE_NAME = "Instance";
+      const TEXT_SIZE = 16;
+      const GRID_WORLD_SIZE = TEXT_SIZE * 1.5;
+      const MIN_ZOOM = 0.1;
+      const MAX_ZOOM = 6;
+      const DRAG_THRESHOLD = 4;
+
+      const viewport = document.getElementById("viewport");
+      const world = document.getElementById("world");
+      const svg = document.getElementById("lines");
+      const marquee = document.getElementById("marquee");
+      const measureBox = document.getElementById("measureBox");
+      const instanceList = document.getElementById("instanceList");
+      const newForm = document.getElementById("newForm");
+      const newName = document.getElementById("newName");
+      const sortSelect = document.getElementById("sortSelect");
+      const instanceMenu = document.getElementById("instanceMenu");
+      const renameInstanceButton = document.getElementById("renameInstanceButton");
+      const duplicateInstanceButton = document.getElementById("duplicateInstanceButton");
+      const deleteInstanceButton = document.getElementById("deleteInstanceButton");
+
+      let store = loadStore();
+      let panX = 0;
+      let panY = 0;
+      let zoom = 1;
+      let selectedIds = new Set();
+      let selectedLinkId = null;
+      let linkArmed = false;
+      let saveTimer = null;
+      let dragState = null;
+      let panState = null;
+      let selectState = null;
+      let instanceMenuTargetId = null;
+      let instanceClickTimer = null;
+      let lastInstanceClick = null;
+      const resizeObserver = new ResizeObserver(() => renderLines());
+
+      function makeId(prefix) {
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      }
+
+      function now() { return Date.now(); }
+
+      function blankInstance(name) {
+        const t = now();
+        return {
+          id: makeId("instance"),
+          name,
+          createdAt: t,
+          modifiedAt: t,
+          view: { panX: 0, panY: 0, zoom: 1 },
+          boxes: [],
+          links: []
+        };
+      }
+
+      function loadStore() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.instances) && parsed.instances.length) {
+              for (const instance of parsed.instances) {
+                instance.boxes ||= [];
+                instance.links ||= [];
+                instance.view ||= { panX: 0, panY: 0, zoom: 1 };
+              }
+              parsed.sort ||= "modified";
+              return parsed;
+            }
+          }
+        } catch (error) {
+          console.warn("Could not read saved data.", error);
+        }
+        const first = blankInstance(BASE_NAME);
+        return { currentId: first.id, instances: [first], sort: "modified" };
+      }
+
+      function currentInstance() {
+        let found = store.instances.find(instance => instance.id === store.currentId);
+        if (!found) {
+          found = store.instances[0] || blankInstance(BASE_NAME);
+          if (!store.instances.length) store.instances.push(found);
+          store.currentId = found.id;
+        }
+        return found;
+      }
+
+      function saveNow(touchCurrent = false) {
+        if (touchCurrent) currentInstance().modifiedAt = now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      }
+
+      function scheduleSave(touchCurrent = true, rerenderList = true) {
+        if (touchCurrent) currentInstance().modifiedAt = now();
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => saveNow(false), 120);
+        if (rerenderList) renderInstanceList();
+      }
+
+      function uniqueName(base, ignoreId = null) {
+        const cleanBase = (base || BASE_NAME).trim() || BASE_NAME;
+        const names = new Set(
+          store.instances
+            .filter(instance => instance.id !== ignoreId)
+            .map(instance => instance.name)
+        );
+        if (!names.has(cleanBase)) return cleanBase;
+        let index = 2;
+        while (names.has(`${cleanBase} ${index}`)) index += 1;
+        return `${cleanBase} ${index}`;
+      }
+
+      function sortedInstances() {
+        const sort = store.sort || "modified";
+        const list = [...store.instances];
+        if (sort === "name") {
+          list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+        } else if (sort === "created") {
+          list.sort((a, b) => b.createdAt - a.createdAt);
+        } else {
+          list.sort((a, b) => b.modifiedAt - a.modifiedAt);
+        }
+        return list;
+      }
+
+      function formatDate(ms) {
+        return new Date(ms).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        });
+      }
+
+      function renderInstanceList() {
+        sortSelect.value = store.sort || "modified";
+        instanceList.innerHTML = "";
+        for (const instance of sortedInstances()) {
+          const item = document.createElement("div");
+          item.className = "instanceItem" + (instance.id === store.currentId ? " active" : "");
+          item.dataset.id = instance.id;
+          item.tabIndex = 0;
+
+          const nameRow = document.createElement("div");
+          nameRow.className = "instanceNameRow";
+
+          const name = document.createElement("span");
+          name.className = "instanceName";
+          name.textContent = instance.name;
+          nameRow.appendChild(name);
+
+          const meta = document.createElement("div");
+          meta.className = "instanceMeta";
+
+          const created = document.createElement("div");
+          created.className = "instanceCreated";
+          created.textContent = `Created: ${formatDate(instance.createdAt)}`;
+
+          const modified = document.createElement("div");
+          modified.className = "instanceModified";
+          modified.textContent = `Modified: ${formatDate(instance.modifiedAt)}`;
+
+          meta.append(created, modified);
+          item.append(nameRow, meta);
+
+          item.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || item.classList.contains("renaming")) return;
+            const t = performance.now();
+            const previous = lastInstanceClick;
+            const isDouble = previous && previous.id === instance.id &&
+              t - previous.time < 450 &&
+              Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 8;
+
+            if (isDouble || event.detail >= 2) {
+              event.preventDefault();
+              event.stopPropagation();
+              clearTimeout(instanceClickTimer);
+              instanceClickTimer = null;
+              lastInstanceClick = null;
+              hideInstanceMenu();
+              beginRenameById(instance.id);
+              return;
+            }
+
+            lastInstanceClick = { id: instance.id, time: t, x: event.clientX, y: event.clientY };
+          });
+
+          item.addEventListener("click", event => {
+            if (item.classList.contains("renaming")) return;
+            if (event.detail >= 2) {
+              event.preventDefault();
+              return;
+            }
+            hideInstanceMenu();
+            clearTimeout(instanceClickTimer);
+            instanceClickTimer = setTimeout(() => {
+              instanceClickTimer = null;
+              if (store.currentId === instance.id) return;
+              store.currentId = instance.id;
+              clearSelection();
+              saveNow(false);
+              loadCurrentView();
+              renderAll();
+            }, 240);
+          });
+
+          item.addEventListener("dblclick", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            clearTimeout(instanceClickTimer);
+            instanceClickTimer = null;
+            lastInstanceClick = null;
+            hideInstanceMenu();
+            beginRenameById(instance.id);
+          });
+
+          item.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            showInstanceMenu(event, instance);
+          });
+
+          instanceList.appendChild(item);
+        }
+      }
+
+      function beginRenameById(instanceId) {
+        const instance = store.instances.find(item => item.id === instanceId);
+        if (!instance) return;
+        const item = Array.from(instanceList.children).find(child => child.dataset.id === instanceId);
+        if (!item) {
+          renderInstanceList();
+          requestAnimationFrame(() => beginRenameById(instanceId));
+          return;
+        }
+        beginRename(item, instance);
+      }
+
+      function measureTextWidthLike(text, referenceEl) {
+        const measurer = document.createElement("span");
+        measurer.textContent = text || " ";
+        measurer.style.position = "fixed";
+        measurer.style.left = "-9999px";
+        measurer.style.top = "-9999px";
+        measurer.style.visibility = "hidden";
+        measurer.style.whiteSpace = "pre";
+        const style = getComputedStyle(referenceEl);
+        measurer.style.font = style.font;
+        measurer.style.fontWeight = style.fontWeight;
+        document.body.appendChild(measurer);
+        const width = Math.ceil(measurer.getBoundingClientRect().width);
+        measurer.remove();
+        return width;
+      }
+
+      function beginRename(item, instance) {
+        if (item.classList.contains("renaming")) return;
+        const nameEl = item.querySelector(".instanceName");
+        const nameRow = item.querySelector(".instanceNameRow");
+        if (!nameEl || !nameRow) return;
+
+        item.classList.add("renaming");
+
+        const displayedNameWidth = Math.max(
+          48,
+          Math.ceil(nameEl.getBoundingClientRect().width),
+          measureTextWidthLike(instance.name, nameEl) + 10
+        );
+        const rowWidth = Math.max(48, Math.floor(nameRow.getBoundingClientRect().width));
+        const inputWidth = Math.min(displayedNameWidth, rowWidth);
+
+        const input = document.createElement("input");
+        input.className = "renameInput";
+        input.value = instance.name;
+        input.setAttribute("aria-label", "Rename instance");
+        input.style.setProperty("--rename-width", `${inputWidth}px`);
+
+        // Replace only the visible name span. The instance card and its
+        // Created/Modified rows remain in place and keep their size.
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        input.addEventListener("pointerdown", event => event.stopPropagation());
+        input.addEventListener("click", event => event.stopPropagation());
+        input.addEventListener("dblclick", event => event.stopPropagation());
+        input.addEventListener("contextmenu", event => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+
+        let done = false;
+        const finish = commit => {
+          if (done) return;
+          done = true;
+          item.classList.remove("renaming");
+          if (commit) {
+            const nextName = uniqueName(input.value, instance.id);
+            if (nextName !== instance.name) {
+              instance.name = nextName;
+              instance.modifiedAt = now();
+              saveNow(false);
+            }
+          }
+          renderInstanceList();
+        };
+
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finish(true);
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            finish(false);
+          }
+        });
+        input.addEventListener("blur", () => finish(true));
+      }
+
+
+      function showInstanceMenu(event, instance) {
+        instanceMenuTargetId = instance.id;
+        instanceMenu.hidden = false;
+
+        const width = instanceMenu.offsetWidth || 135;
+        const height = instanceMenu.offsetHeight || 80;
+        const left = Math.min(event.clientX, window.innerWidth - width - 6);
+        const top = Math.min(event.clientY, window.innerHeight - height - 6);
+
+        instanceMenu.style.left = `${Math.max(6, left)}px`;
+        instanceMenu.style.top = `${Math.max(6, top)}px`;
+      }
+
+      function hideInstanceMenu() {
+        instanceMenu.hidden = true;
+        instanceMenuTargetId = null;
+      }
+
+      function duplicateInstance(source) {
+        if (!source) return;
+
+        const t = now();
+        const idMap = new Map();
+        const clone = {
+          id: makeId("instance"),
+          name: uniqueName(source.name),
+          createdAt: t,
+          modifiedAt: t,
+          view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
+          boxes: [],
+          links: []
+        };
+
+        clone.boxes = (source.boxes || []).map(box => {
+          const newId = makeId("box");
+          idMap.set(box.id, newId);
+          return { ...box, id: newId };
+        });
+
+        clone.links = (source.links || [])
+          .map(link => ({
+            ...link,
+            id: makeId("link"),
+            from: idMap.get(link.from),
+            to: idMap.get(link.to)
+          }))
+          .filter(link => link.from && link.to && link.from !== link.to);
+
+        store.instances.push(clone);
+        store.currentId = clone.id;
+        clearSelection();
+        saveNow(false);
+        loadCurrentView();
+        renderAll();
+      }
+
+      function deleteInstance(instance) {
+        if (!instance) return;
+        const ok = window.confirm(`Are you sure you want to delete "${instance.name}"?`);
+        if (!ok) return;
+
+        const index = store.instances.findIndex(item => item.id === instance.id);
+        if (index === -1) return;
+
+        const deletingCurrent = store.currentId === instance.id;
+        store.instances.splice(index, 1);
+
+        if (!store.instances.length) {
+          store.instances.push(blankInstance(BASE_NAME));
+        }
+
+        if (deletingCurrent) {
+          const next = store.instances[Math.min(index, store.instances.length - 1)] || store.instances[0];
+          store.currentId = next.id;
+          clearSelection();
+          loadCurrentView();
+        }
+
+        saveNow(false);
+        renderAll();
+      }
+
+      function loadCurrentView() {
+        const view = currentInstance().view || { panX: 0, panY: 0, zoom: 1 };
+        panX = Number.isFinite(view.panX) ? view.panX : 0;
+        panY = Number.isFinite(view.panY) ? view.panY : 0;
+        zoom = Number.isFinite(view.zoom) ? view.zoom : 1;
+        zoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+        applyView();
+      }
+
+      function saveCurrentView(touch = false) {
+        currentInstance().view = { panX, panY, zoom };
+        scheduleSave(touch, false);
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function applyView() {
+        world.style.transform = `matrix(${zoom}, 0, 0, ${zoom}, ${panX}, ${panY})`;
+        const gridSize = GRID_WORLD_SIZE * zoom;
+        const gx = mod(panX, gridSize);
+        const gy = mod(panY, gridSize);
+        viewport.style.setProperty("--grid-size", `${gridSize}px`);
+        viewport.style.setProperty("--grid-x", `${gx}px`);
+        viewport.style.setProperty("--grid-y", `${gy}px`);
+      }
+
+      function mod(value, size) {
+        if (!size) return 0;
+        return ((value % size) + size) % size;
+      }
+
+      function screenToWorld(clientX, clientY) {
+        const rect = viewport.getBoundingClientRect();
+        return {
+          x: (clientX - rect.left - panX) / zoom,
+          y: (clientY - rect.top - panY) / zoom
+        };
+      }
+
+      function screenToViewport(clientX, clientY) {
+        const rect = viewport.getBoundingClientRect();
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        };
+      }
+
+      function setViewKeepingWorldAtClient(worldPoint, clientX, clientY) {
+        const point = screenToViewport(clientX, clientY);
+        panX = point.x - worldPoint.x * zoom;
+        panY = point.y - worldPoint.y * zoom;
+      }
+
+      function renderAll() {
+        renderBoxes();
+        renderLines();
+        renderInstanceList();
+      }
+
+      function clearSelection() {
+        selectedIds.clear();
+        selectedLinkId = null;
+        linkArmed = false;
+      }
+
+      function clearBoxSelection() {
+        selectedIds.clear();
+        linkArmed = false;
+      }
+
+      function selectLink(linkId) {
+        clearBoxSelection();
+        selectedLinkId = linkId;
+        syncSelectionClasses();
+        renderLines();
+      }
+
+      function setSelection(ids, shouldArm = false) {
+        selectedLinkId = null;
+        selectedIds = new Set(ids);
+        linkArmed = shouldArm && selectedIds.size > 0;
+        syncSelectionClasses();
+      }
+
+      function syncSelectionClasses() {
+        const boxes = world.querySelectorAll(".box");
+        for (const box of boxes) {
+          const id = box.dataset.id;
+          const selected = selectedIds.has(id);
+          box.classList.toggle("selected", selected);
+          box.classList.toggle("linkArmed", selected && linkArmed);
+        }
+      }
+
+      function renderBoxes() {
+        resizeObserver.disconnect();
+        world.querySelectorAll(".box").forEach(box => box.remove());
+
+        for (const data of currentInstance().boxes) {
+          const box = document.createElement("textarea");
+          box.className = "box";
+          box.dataset.id = data.id;
+          box.spellcheck = false;
+          box.value = data.text || "";
+          box.wrap = "soft";
+          placeBox(box, data.x, data.y);
+          autoSizeBox(box, data);
+
+          box.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+
+          box.addEventListener("pointerdown", event => onBoxPointerDown(event, data, box));
+
+          box.addEventListener("input", () => {
+            data.text = box.value;
+            autoSizeBox(box, data);
+            requestAnimationFrame(renderLines);
+            scheduleSave(true, true);
+          });
+
+          box.addEventListener("blur", () => {
+            data.text = box.value;
+            autoSizeBox(box, data);
+            requestAnimationFrame(renderLines);
+            scheduleSave(true, true);
+          });
+
+          world.appendChild(box);
+          resizeObserver.observe(box);
+        }
+        syncSelectionClasses();
+      }
+
+      function placeBox(element, x, y) {
+        element.style.left = `${x}px`;
+        element.style.top = `${y}px`;
+      }
+
+      function autoSizeBox(element, data = null) {
+        const text = element.value || "";
+        measureBox.textContent = text.length ? text + (text.endsWith("\n") ? "\u200b" : "") : " ";
+        const measuredWidth = Math.ceil(measureBox.offsetWidth + 2);
+        const measuredHeight = Math.ceil(measureBox.offsetHeight + 2);
+        const width = clamp(measuredWidth, 24, 480);
+        const height = Math.max(24, measuredHeight);
+        element.style.width = `${width}px`;
+        element.style.height = `${height}px`;
+        if (data) {
+          data.w = width;
+          data.h = height;
+        }
+      }
+
+      function onBoxPointerDown(event, data, box) {
+        if (event.button === 0) {
+          const hadSelectedLink = selectedLinkId !== null;
+          selectedLinkId = null;
+          if (hadSelectedLink) renderLines();
+        }
+
+        if (event.button === 0 && linkArmed && selectedIds.size) {
+          event.preventDefault();
+          event.stopPropagation();
+          connectSelectionTo(data.id);
+          linkArmed = false;
+          syncSelectionClasses();
+          renderLines();
+          return;
+        }
+
+        if (event.button === 2) {
+          event.preventDefault();
+          event.stopPropagation();
+          document.activeElement?.blur?.();
+
+          const additive = event.ctrlKey || event.metaKey;
+          if (additive) {
+            if (selectedIds.has(data.id)) selectedIds.delete(data.id);
+            else selectedIds.add(data.id);
+          } else if (!selectedIds.has(data.id)) {
+            selectedIds = new Set([data.id]);
+          }
+
+          linkArmed = selectedIds.size > 0;
+          syncSelectionClasses();
+
+          const idsToMove = selectedIds.has(data.id) ? [...selectedIds] : [data.id];
+          beginBoxDrag(event, box, idsToMove, "right");
+          return;
+        }
+      }
+
+      function beginBoxDrag(event, element, idsToMove, buttonName) {
+        const originals = new Map();
+        for (const id of idsToMove) {
+          const item = getBoxData(id);
+          if (item) originals.set(id, { x: item.x, y: item.y });
+        }
+        dragState = {
+          pointerId: event.pointerId,
+          buttonName,
+          startX: event.clientX,
+          startY: event.clientY,
+          ids: [...originals.keys()],
+          originals,
+          element,
+          moved: false
+        };
+        try { element.setPointerCapture(event.pointerId); } catch (e) {}
+      }
+
+      function connectSelectionTo(targetId) {
+        const sources = [...selectedIds].filter(id => id !== targetId);
+        for (const sourceId of sources) addLink(sourceId, targetId, false);
+        if (sources.length) scheduleSave(true, true);
+      }
+
+      function addLink(from, to, save = true) {
+        if (!from || !to || from === to) return;
+        const inst = currentInstance();
+        const exists = inst.links.some(link => link.from === from && link.to === to);
+        if (!exists) {
+          inst.links.push({ id: makeId("link"), from, to });
+          if (save) scheduleSave(true, true);
+        }
+      }
+
+      function deleteSelectedBoxes() {
+        if (!selectedIds.size) return;
+        const inst = currentInstance();
+        inst.boxes = inst.boxes.filter(box => !selectedIds.has(box.id));
+        inst.links = inst.links.filter(link => !selectedIds.has(link.from) && !selectedIds.has(link.to));
+        clearSelection();
+        scheduleSave(true, true);
+        renderAll();
+      }
+
+      function deleteSelectedLink() {
+        if (!selectedLinkId) return;
+        const inst = currentInstance();
+        const before = inst.links.length;
+        inst.links = inst.links.filter(link => link.id !== selectedLinkId);
+        selectedLinkId = null;
+        if (inst.links.length !== before) scheduleSave(true, true);
+        renderLines();
+      }
+
+      function getBoxData(id) {
+        return currentInstance().boxes.find(box => box.id === id);
+      }
+
+      function getBoxElement(id) {
+        return world.querySelector(`.box[data-id="${CSS.escape(id)}"]`);
+      }
+
+      function renderLines() {
+        [...svg.querySelectorAll("line")].forEach(line => line.remove());
+        const inst = currentInstance();
+        const linkIds = new Set(inst.links.map(link => link.id));
+        if (selectedLinkId && !linkIds.has(selectedLinkId)) selectedLinkId = null;
+
+        for (const link of inst.links) {
+          const from = getBoxRect(link.from);
+          const to = getBoxRect(link.to);
+          if (!from || !to) continue;
+          const points = closestSidePoints(from, to);
+
+          const visible = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          visible.classList.add("linkLine");
+          if (link.id === selectedLinkId) visible.classList.add("selected");
+          visible.setAttribute("x1", points.start.x);
+          visible.setAttribute("y1", points.start.y);
+          visible.setAttribute("x2", points.end.x);
+          visible.setAttribute("y2", points.end.y);
+          visible.setAttribute("stroke", "#e8e8e8");
+          visible.setAttribute("stroke-width", link.id === selectedLinkId ? "4" : "2");
+          visible.setAttribute("marker-end", "url(#arrowhead)");
+          svg.appendChild(visible);
+
+          const hit = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          hit.classList.add("linkHit");
+          hit.setAttribute("x1", points.start.x);
+          hit.setAttribute("y1", points.start.y);
+          hit.setAttribute("x2", points.end.x);
+          hit.setAttribute("y2", points.end.y);
+          hit.setAttribute("stroke", "transparent");
+          hit.setAttribute("stroke-width", "14");
+          hit.setAttribute("fill", "none");
+          hit.addEventListener("pointerdown", event => {
+            if (event.button !== 0) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            document.activeElement?.blur?.();
+          });
+          hit.addEventListener("click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            document.activeElement?.blur?.();
+            selectLink(link.id);
+          });
+          hit.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          svg.appendChild(hit);
+        }
+      }
+
+      function getBoxRect(id) {
+        const data = getBoxData(id);
+        const element = getBoxElement(id);
+        if (!data || !element) return null;
+        autoSizeBox(element, data);
+        return {
+          x: data.x,
+          y: data.y,
+          w: data.w || element.offsetWidth,
+          h: data.h || element.offsetHeight
+        };
+      }
+
+      function sideCenters(rect) {
+        return [
+          { side: "top", x: rect.x + rect.w / 2, y: rect.y },
+          { side: "right", x: rect.x + rect.w, y: rect.y + rect.h / 2 },
+          { side: "bottom", x: rect.x + rect.w / 2, y: rect.y + rect.h },
+          { side: "left", x: rect.x, y: rect.y + rect.h / 2 }
+        ];
+      }
+
+      function closestSidePoints(fromRect, toRect) {
+        const fromSides = sideCenters(fromRect);
+        const toSides = sideCenters(toRect);
+        let best = { start: fromSides[0], end: toSides[0], distance: Infinity };
+
+        for (const start of fromSides) {
+          for (const end of toSides) {
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const distance = dx * dx + dy * dy;
+            if (distance < best.distance) best = { start, end, distance };
+          }
+        }
+        return best;
+      }
+
+      function createBoxAt(clientX, clientY) {
+        const point = screenToWorld(clientX, clientY);
+        const inst = currentInstance();
+        const box = {
+          id: makeId("box"),
+          x: Math.round(point.x),
+          y: Math.round(point.y),
+          text: ""
+        };
+        inst.boxes.push(box);
+        selectedIds = new Set([box.id]);
+        selectedLinkId = null;
+        linkArmed = false;
+        scheduleSave(true, true);
+        renderAll();
+
+        requestAnimationFrame(() => {
+          const element = getBoxElement(box.id);
+          if (element) {
+            element.focus();
+            element.setSelectionRange(element.value.length, element.value.length);
+          }
+        });
+      }
+
+      function getWorldRectFromViewportRect(rect) {
+        const a = screenToWorld(rect.left, rect.top);
+        const b = screenToWorld(rect.right, rect.bottom);
+        return {
+          left: Math.min(a.x, b.x),
+          right: Math.max(a.x, b.x),
+          top: Math.min(a.y, b.y),
+          bottom: Math.max(a.y, b.y)
+        };
+      }
+
+      function getSelectedInWorldRect(worldRect) {
+        const ids = [];
+        for (const box of currentInstance().boxes) {
+          const element = getBoxElement(box.id);
+          if (!element) continue;
+          autoSizeBox(element, box);
+          const boxRect = {
+            left: box.x,
+            right: box.x + (box.w || element.offsetWidth),
+            top: box.y,
+            bottom: box.y + (box.h || element.offsetHeight)
+          };
+          if (rectsOverlap(worldRect, boxRect)) ids.push(box.id);
+        }
+        return ids;
+      }
+
+      function rectsOverlap(a, b) {
+        return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+      }
+
+      function updateMarqueeVisual() {
+        if (!selectState) return;
+        const left = Math.min(selectState.startViewport.x, selectState.currentViewport.x);
+        const top = Math.min(selectState.startViewport.y, selectState.currentViewport.y);
+        const width = Math.abs(selectState.currentViewport.x - selectState.startViewport.x);
+        const height = Math.abs(selectState.currentViewport.y - selectState.startViewport.y);
+        marquee.style.left = `${left}px`;
+        marquee.style.top = `${top}px`;
+        marquee.style.width = `${width}px`;
+        marquee.style.height = `${height}px`;
+        marquee.style.display = "block";
+      }
+
+      function updateSelectionFromMarquee() {
+        if (!selectState) return;
+        const vpRect = viewport.getBoundingClientRect();
+        const left = Math.min(selectState.startViewport.x, selectState.currentViewport.x) + vpRect.left;
+        const top = Math.min(selectState.startViewport.y, selectState.currentViewport.y) + vpRect.top;
+        const right = Math.max(selectState.startViewport.x, selectState.currentViewport.x) + vpRect.left;
+        const bottom = Math.max(selectState.startViewport.y, selectState.currentViewport.y) + vpRect.top;
+        const hits = getSelectedInWorldRect(getWorldRectFromViewportRect({ left, top, right, bottom }));
+        const next = new Set(selectState.baseIds);
+        if (!selectState.additive) next.clear();
+        for (const id of hits) next.add(id);
+        selectedIds = next;
+        selectedLinkId = null;
+        linkArmed = selectedIds.size > 0;
+        syncSelectionClasses();
+      }
+
+      document.addEventListener("pointermove", event => {
+        if (dragState && event.pointerId === dragState.pointerId) {
+          const screenDx = event.clientX - dragState.startX;
+          const screenDy = event.clientY - dragState.startY;
+          const distance = Math.hypot(screenDx, screenDy);
+          if (!dragState.moved && distance > DRAG_THRESHOLD) {
+            dragState.moved = true;
+            linkArmed = false;
+            document.activeElement?.blur?.();
+            dragState.element.classList.add("draggingBox");
+            document.body.classList.add("noSelect");
+            syncSelectionClasses();
+          }
+          if (dragState.moved) {
+            const dx = screenDx / zoom;
+            const dy = screenDy / zoom;
+            for (const id of dragState.ids) {
+              const data = getBoxData(id);
+              const original = dragState.originals.get(id);
+              const element = getBoxElement(id);
+              if (!data || !original || !element) continue;
+              data.x = Math.round(original.x + dx);
+              data.y = Math.round(original.y + dy);
+              placeBox(element, data.x, data.y);
+            }
+            renderLines();
+            scheduleSave(true, false);
+          }
+        }
+
+        if (panState && event.pointerId === panState.pointerId) {
+          event.preventDefault();
+          panState.lastClientX = event.clientX;
+          panState.lastClientY = event.clientY;
+          const totalDx = event.clientX - panState.startX;
+          const totalDy = event.clientY - panState.startY;
+          if (!panState.moved && Math.hypot(totalDx, totalDy) > DRAG_THRESHOLD) {
+            panState.moved = true;
+            document.body.classList.add("noSelect");
+          }
+
+          setViewKeepingWorldAtClient(panState.grabWorld, event.clientX, event.clientY);
+          applyView();
+          saveCurrentView(false);
+        }
+
+        if (selectState && event.pointerId === selectState.pointerId) {
+          selectState.currentViewport = screenToViewport(event.clientX, event.clientY);
+          const dx = event.clientX - selectState.startClient.x;
+          const dy = event.clientY - selectState.startClient.y;
+          if (!selectState.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+            selectState.moved = true;
+            viewport.classList.add("selecting");
+            document.body.classList.add("noSelect");
+          }
+          if (selectState.moved) {
+            updateMarqueeVisual();
+            updateSelectionFromMarquee();
+          }
+        }
+      });
+
+      document.addEventListener("pointerup", event => {
+        if (dragState && event.pointerId === dragState.pointerId) {
+          const wasMoved = dragState.moved;
+          const element = dragState.element;
+          try { element.releasePointerCapture(dragState.pointerId); } catch (e) {}
+          element.classList.remove("draggingBox");
+          document.body.classList.remove("noSelect");
+          dragState = null;
+          if (wasMoved) {
+            linkArmed = false;
+            saveNow(true);
+            renderInstanceList();
+          } else {
+            linkArmed = selectedIds.size > 0;
+          }
+          syncSelectionClasses();
+        }
+
+        if (panState && event.pointerId === panState.pointerId) {
+          const wasMoved = panState.moved;
+          try { viewport.releasePointerCapture(panState.pointerId); } catch (e) {}
+          viewport.classList.remove("panning");
+          document.body.classList.remove("noSelect");
+          panState = null;
+          if (!wasMoved) {
+            clearSelection();
+            syncSelectionClasses();
+            renderLines();
+          }
+          saveNow(false);
+        }
+
+        if (selectState && event.pointerId === selectState.pointerId) {
+          try { viewport.releasePointerCapture(selectState.pointerId); } catch (e) {}
+          if (!selectState.moved && !selectState.additive) {
+            clearSelection();
+            syncSelectionClasses();
+          }
+          marquee.style.display = "none";
+          viewport.classList.remove("selecting");
+          document.body.classList.remove("noSelect");
+          selectState = null;
+        }
+      });
+
+      viewport.addEventListener("pointerdown", event => {
+        const onBox = event.target.closest && event.target.closest(".box");
+        const onLink = event.target.closest && event.target.closest(".linkHit");
+        if (onBox || onLink) return;
+
+        if (event.button === 0) {
+          hideInstanceMenu();
+          document.activeElement?.blur?.();
+          event.preventDefault();
+          const grabWorld = screenToWorld(event.clientX, event.clientY);
+          panState = {
+            pointerId: event.pointerId,
+            grabWorld,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastClientX: event.clientX,
+            lastClientY: event.clientY,
+            moved: false
+          };
+          try { viewport.setPointerCapture(event.pointerId); } catch (e) {}
+          viewport.classList.add("panning");
+          return;
+        }
+
+        if (event.button === 2) {
+          hideInstanceMenu();
+          event.preventDefault();
+          document.activeElement?.blur?.();
+          const additive = event.ctrlKey || event.metaKey;
+          selectedLinkId = null;
+          if (!additive) {
+            selectedIds.clear();
+            linkArmed = false;
+            syncSelectionClasses();
+          }
+          const startViewport = screenToViewport(event.clientX, event.clientY);
+          selectState = {
+            pointerId: event.pointerId,
+            startClient: { x: event.clientX, y: event.clientY },
+            startViewport,
+            currentViewport: startViewport,
+            baseIds: new Set(selectedIds),
+            additive,
+            moved: false
+          };
+          try { viewport.setPointerCapture(event.pointerId); } catch (e) {}
+        }
+      });
+
+      viewport.addEventListener("dblclick", event => {
+        if (event.target.closest && (event.target.closest(".box") || event.target.closest(".linkHit"))) return;
+        event.preventDefault();
+        createBoxAt(event.clientX, event.clientY);
+      });
+
+      viewport.addEventListener("contextmenu", event => {
+        event.preventDefault();
+      });
+
+      viewport.addEventListener("lostpointercapture", () => {
+        if (panState) {
+          viewport.classList.remove("panning");
+          document.body.classList.remove("noSelect");
+          panState = null;
+        }
+        if (selectState) {
+          marquee.style.display = "none";
+          viewport.classList.remove("selecting");
+          document.body.classList.remove("noSelect");
+          selectState = null;
+        }
+      });
+
+      viewport.addEventListener("wheel", event => {
+        event.preventDefault();
+        hideInstanceMenu();
+
+        const nextZoom = clamp(zoom * Math.exp(-event.deltaY * 0.001), MIN_ZOOM, MAX_ZOOM);
+
+        if (panState) {
+          // While panning, the exact world coordinate initially grabbed must stay
+          // under the live pointer. Zoom changes should not introduce drift.
+          zoom = nextZoom;
+          panState.lastClientX = event.clientX;
+          panState.lastClientY = event.clientY;
+          setViewKeepingWorldAtClient(panState.grabWorld, event.clientX, event.clientY);
+        } else {
+          const cursorWorld = screenToWorld(event.clientX, event.clientY);
+          zoom = nextZoom;
+          setViewKeepingWorldAtClient(cursorWorld, event.clientX, event.clientY);
+        }
+
+        applyView();
+        saveCurrentView(false);
+      }, { passive: false });
+
+      document.addEventListener("keydown", event => {
+        const active = document.activeElement;
+        const typing = active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || active.isContentEditable);
+        if (event.key === "Escape") {
+          hideInstanceMenu();
+          clearSelection();
+          syncSelectionClasses();
+          renderLines();
+          return;
+        }
+        if ((event.key === "Delete" || event.key === "Backspace") && !typing) {
+          if (selectedLinkId) {
+            event.preventDefault();
+            deleteSelectedLink();
+            return;
+          }
+          if (selectedIds.size) {
+            event.preventDefault();
+            deleteSelectedBoxes();
+          }
+        }
+      });
+
+
+      document.addEventListener("contextmenu", event => {
+        event.preventDefault();
+      });
+
+      document.addEventListener("pointerdown", event => {
+        if (!instanceMenu.hidden && !instanceMenu.contains(event.target)) {
+          hideInstanceMenu();
+        }
+      });
+
+      instanceMenu.addEventListener("contextmenu", event => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      instanceMenu.addEventListener("pointerdown", event => {
+        event.stopPropagation();
+      });
+
+      renameInstanceButton.addEventListener("click", () => {
+        const id = instanceMenuTargetId;
+        hideInstanceMenu();
+        beginRenameById(id);
+      });
+
+      duplicateInstanceButton.addEventListener("click", () => {
+        const instance = store.instances.find(item => item.id === instanceMenuTargetId);
+        hideInstanceMenu();
+        duplicateInstance(instance);
+      });
+
+      deleteInstanceButton.addEventListener("click", () => {
+        const instance = store.instances.find(item => item.id === instanceMenuTargetId);
+        hideInstanceMenu();
+        deleteInstance(instance);
+      });
+
+      newForm.addEventListener("submit", event => {
+        event.preventDefault();
+        const requestedName = newName.value;
+        const instance = blankInstance(uniqueName(requestedName));
+        store.instances.push(instance);
+        store.currentId = instance.id;
+        clearSelection();
+        saveNow(false);
+        loadCurrentView();
+        renderAll();
+        newName.value = requestedName || BASE_NAME;
+      });
+
+      sortSelect.addEventListener("change", () => {
+        store.sort = sortSelect.value;
+        saveNow(false);
+        renderInstanceList();
+      });
+
+      window.addEventListener("beforeunload", () => saveNow(false));
+
+      loadCurrentView();
+      renderAll();
+      saveNow(false);
+    })();
+  </script>
+</body>
+</html>
