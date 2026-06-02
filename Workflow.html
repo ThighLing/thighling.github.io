@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
+  <!-- controls_v4_linehash: # invisible hit area spans the active line width -->
   <style>
     :root {
       --panel-width: 260px;
@@ -70,19 +71,37 @@
       gap: 6px;
     }
 
-    #newForm[hidden] { display: none; }
-
     #newForm input,
     #newForm button { width: auto; }
 
     #instanceList {
       overflow-y: auto;
       min-height: 0;
+      flex: 1 1 auto;
       border-top: 1px solid #303030;
       padding-top: 8px;
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }
+
+    #monospaceControl {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #ddd;
+      cursor: pointer;
+      user-select: none;
+      border-top: 1px solid #303030;
+      padding-top: 8px;
+    }
+
+    #sidePanel #monospaceToggle {
+      width: auto;
+      margin: 0;
+      accent-color: #fff;
+      cursor: pointer;
     }
 
     .instanceItem {
@@ -93,8 +112,8 @@
       user-select: none;
       background: #171717;
       display: block;
-      min-height: 78px;
-      height: 78px;
+      min-height: 84px;
+      height: 84px;
       overflow: hidden;
     }
 
@@ -131,7 +150,7 @@
       line-height: 1.25;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
       min-width: 0;
       margin-top: 5px;
     }
@@ -197,18 +216,9 @@
       z-index: 1;
     }
 
-    .linkLine {
-      pointer-events: none;
-    }
-
-    .linkLine.selected {
-      stroke-width: 4;
-    }
-
-    .linkHit {
-      pointer-events: stroke;
-      cursor: pointer;
-    }
+    .linkLine { pointer-events: none; }
+    .linkLine.selected { stroke-width: 4; }
+    .linkHit { pointer-events: stroke; cursor: pointer; }
 
     .box {
       position: absolute;
@@ -216,6 +226,8 @@
       min-width: 24px;
       min-height: 24px;
       max-width: 480px;
+      width: fit-content;
+      height: fit-content;
       padding: 3px 5px;
       border: 1px solid #222;
       border-radius: 0;
@@ -223,13 +235,34 @@
       color: #000;
       font: 16px/18px system-ui, sans-serif;
       white-space: pre-wrap;
-      word-break: break-word;
       overflow-wrap: break-word;
+      word-break: break-word;
       outline: none;
-      resize: none;
-      overflow: hidden;
       cursor: text;
       user-select: text;
+      tab-size: 4;
+    }
+
+    .box:empty::before {
+      content: "\00a0";
+    }
+
+    .box .textLine {
+      min-height: 18px;
+      line-height: 18px;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .box .textLine.bigLine {
+      font-size: 32px;
+      line-height: 36px;
+    }
+
+    .monospaceText .box,
+    #measureBox.monospaceMeasure {
+      font-family: "Courier New", monospace;
     }
 
     .box.selected {
@@ -263,12 +296,118 @@
       min-width: 24px;
       min-height: 24px;
       max-width: 480px;
+      width: fit-content;
       padding: 3px 5px;
       border: 1px solid transparent;
       font: 16px/18px system-ui, sans-serif;
       white-space: pre-wrap;
-      word-break: break-word;
       overflow-wrap: break-word;
+      word-break: break-word;
+      tab-size: 4;
+    }
+
+    #measureBox .textLine {
+      min-height: 18px;
+      line-height: 18px;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    #measureBox .textLine.bigLine {
+      font-size: 32px;
+      line-height: 36px;
+    }
+
+    #formatToolbar,
+    #lineButton {
+      position: absolute;
+      z-index: 30;
+    }
+
+    #formatToolbar {
+      display: block;
+      width: 0;
+      height: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none !important;
+      box-shadow: none !important;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    #formatToolbar[hidden],
+    #lineButton[hidden],
+    #controlHitLayer[hidden] { display: none; }
+
+    #formatToolbar button,
+    #lineButton {
+      position: absolute;
+      box-sizing: border-box;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 1px solid #555;
+      border-radius: 3px;
+      background: #050505;
+      color: #fff;
+      font: 22px/1 system-ui, sans-serif;
+      cursor: pointer;
+      text-align: center;
+      overflow: hidden;
+      touch-action: none;
+      pointer-events: none;
+      outline: none;
+      box-shadow: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #formatToolbar button:hover,
+    #formatToolbar button.hit-hover,
+    #lineButton:hover,
+    #lineButton.hit-hover { background: #2a2a2a; }
+
+    #formatToolbar button.active,
+    #lineButton.active {
+      color: #000;
+      background: #fff;
+      border-color: #fff;
+    }
+
+    #formatToolbar button > span,
+    #lineButton > span {
+      pointer-events: none;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    #formatToolbar button[data-format="bold"] { font-weight: 700; }
+    #formatToolbar button[data-format="italic"] { font-style: italic; }
+    #formatToolbar button[data-format="underline"] { text-decoration: underline; }
+    #formatToolbar button[data-format="strike"] { text-decoration: line-through; }
+
+    #controlHitLayer {
+      position: absolute;
+      inset: 0;
+      z-index: 31;
+      pointer-events: none;
+    }
+
+    .controlHitZone {
+      position: absolute;
+      background: transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    body.control-hit,
+    body.control-hit * {
+      cursor: pointer !important;
     }
 
     #instanceMenu {
@@ -324,6 +463,10 @@
         <option value="name">Sort: name</option>
       </select>
       <div id="instanceList"></div>
+      <label id="monospaceControl" title="Use Courier New for boxes in this instance">
+        <input id="monospaceToggle" type="checkbox" />
+        <span>Monospace</span>
+      </label>
     </aside>
 
     <main id="viewport">
@@ -337,6 +480,14 @@
         </svg>
       </div>
       <div id="marquee"></div>
+      <div id="formatToolbar" hidden aria-label="Text formatting">
+        <button type="button" data-format="bold" title="Bold"><span>B</span></button>
+        <button type="button" data-format="italic" title="Italic"><span>I</span></button>
+        <button type="button" data-format="underline" title="Underline"><span>U</span></button>
+        <button type="button" data-format="strike" title="Strikethrough"><span>S</span></button>
+      </div>
+      <button id="lineButton" type="button" hidden title="Make current line bigger"><span>#</span></button>
+      <div id="controlHitLayer" hidden aria-hidden="true"></div>
       <div id="measureBox"></div>
     </main>
   </div>
@@ -362,10 +513,16 @@
       const svg = document.getElementById("lines");
       const marquee = document.getElementById("marquee");
       const measureBox = document.getElementById("measureBox");
+      const formatToolbar = document.getElementById("formatToolbar");
+      const lineButton = document.getElementById("lineButton");
+      const controlHitLayer = document.getElementById("controlHitLayer");
+      const CONTROL_VISUAL_SIZE = 36;
+      const CONTROL_HIT_MARGIN = 12;
       const instanceList = document.getElementById("instanceList");
       const newForm = document.getElementById("newForm");
       const newName = document.getElementById("newName");
       const sortSelect = document.getElementById("sortSelect");
+      const monospaceToggle = document.getElementById("monospaceToggle");
       const instanceMenu = document.getElementById("instanceMenu");
       const renameInstanceButton = document.getElementById("renameInstanceButton");
       const duplicateInstanceButton = document.getElementById("duplicateInstanceButton");
@@ -385,7 +542,17 @@
       let instanceMenuTargetId = null;
       let instanceClickTimer = null;
       let lastInstanceClick = null;
-      const resizeObserver = new ResizeObserver(() => renderLines());
+      let activeFormatBoxId = null;
+      let activeLineEl = null;
+      let suppressNextBoxBlurSave = false;
+
+      document.execCommand?.("styleWithCSS", false, false);
+      document.execCommand?.("defaultParagraphSeparator", false, "div");
+
+      const resizeObserver = new ResizeObserver(() => {
+        renderLines();
+        positionEditingControls();
+      });
 
       function makeId(prefix) {
         return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -393,13 +560,14 @@
 
       function now() { return Date.now(); }
 
-      function blankInstance(name) {
+      function blankInstance(name, options = {}) {
         const t = now();
         return {
           id: makeId("instance"),
           name,
           createdAt: t,
           modifiedAt: t,
+          monospace: Boolean(options.monospace),
           view: { panX: 0, panY: 0, zoom: 1 },
           boxes: [],
           links: []
@@ -412,11 +580,7 @@
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed.instances) && parsed.instances.length) {
-              for (const instance of parsed.instances) {
-                instance.boxes ||= [];
-                instance.links ||= [];
-                instance.view ||= { panX: 0, panY: 0, zoom: 1 };
-              }
+              for (const instance of parsed.instances) migrateInstance(instance);
               parsed.sort ||= "modified";
               return parsed;
             }
@@ -424,17 +588,68 @@
         } catch (error) {
           console.warn("Could not read saved data.", error);
         }
-        const first = blankInstance(BASE_NAME);
+        const first = blankInstance(BASE_NAME, { monospace: false });
         return { currentId: first.id, instances: [first], sort: "modified" };
+      }
+
+      function migrateInstance(instance) {
+        instance.boxes ||= [];
+        instance.links ||= [];
+        instance.view ||= { panX: 0, panY: 0, zoom: 1 };
+        instance.monospace = Boolean(instance.monospace);
+        for (const box of instance.boxes) migrateBox(box);
+      }
+
+      function migrateBox(box) {
+        box.text ||= "";
+        if (!box.html) {
+          const escaped = textToLineHtml(box.text || "");
+          const wrappers = [];
+          if (box.bold) wrappers.push("b");
+          if (box.italic) wrappers.push("i");
+          if (box.underline) wrappers.push("u");
+          if (box.strike) wrappers.push("s");
+          box.html = wrapAllLineText(escaped, wrappers);
+        }
+        box.w ||= 24;
+        box.h ||= 24;
+      }
+
+      function escapeHtml(text) {
+        return String(text)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function textToLineHtml(text) {
+        const lines = String(text ?? "").split("\n");
+        return lines.map(line => `<div class="textLine">${line ? escapeHtml(line) : "<br>"}</div>`).join("");
+      }
+
+      function wrapAllLineText(html, wrappers) {
+        if (!wrappers.length) return html;
+        const temp = document.createElement("div");
+        temp.innerHTML = html;
+        for (const line of temp.querySelectorAll(".textLine")) {
+          const content = line.innerHTML;
+          if (content === "<br>" || content === "") continue;
+          let wrapped = content;
+          for (const tag of wrappers) wrapped = `<${tag}>${wrapped}</${tag}>`;
+          line.innerHTML = wrapped;
+        }
+        return temp.innerHTML;
       }
 
       function currentInstance() {
         let found = store.instances.find(instance => instance.id === store.currentId);
         if (!found) {
-          found = store.instances[0] || blankInstance(BASE_NAME);
+          found = store.instances[0] || blankInstance(BASE_NAME, { monospace: false });
           if (!store.instances.length) store.instances.push(found);
           store.currentId = found.id;
         }
+        migrateInstance(found);
         return found;
       }
 
@@ -452,11 +667,7 @@
 
       function uniqueName(base, ignoreId = null) {
         const cleanBase = (base || BASE_NAME).trim() || BASE_NAME;
-        const names = new Set(
-          store.instances
-            .filter(instance => instance.id !== ignoreId)
-            .map(instance => instance.name)
-        );
+        const names = new Set(store.instances.filter(instance => instance.id !== ignoreId).map(instance => instance.name));
         if (!names.has(cleanBase)) return cleanBase;
         let index = 2;
         while (names.has(`${cleanBase} ${index}`)) index += 1;
@@ -466,23 +677,14 @@
       function sortedInstances() {
         const sort = store.sort || "modified";
         const list = [...store.instances];
-        if (sort === "name") {
-          list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-        } else if (sort === "created") {
-          list.sort((a, b) => b.createdAt - a.createdAt);
-        } else {
-          list.sort((a, b) => b.modifiedAt - a.modifiedAt);
-        }
+        if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+        else if (sort === "created") list.sort((a, b) => b.createdAt - a.createdAt);
+        else list.sort((a, b) => b.modifiedAt - a.modifiedAt);
         return list;
       }
 
       function formatDate(ms) {
-        return new Date(ms).toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit"
-        });
+        return new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       }
 
       function renderInstanceList() {
@@ -496,7 +698,6 @@
 
           const nameRow = document.createElement("div");
           nameRow.className = "instanceNameRow";
-
           const name = document.createElement("span");
           name.className = "instanceName";
           name.textContent = instance.name;
@@ -504,15 +705,12 @@
 
           const meta = document.createElement("div");
           meta.className = "instanceMeta";
-
           const created = document.createElement("div");
           created.className = "instanceCreated";
           created.textContent = `Created: ${formatDate(instance.createdAt)}`;
-
           const modified = document.createElement("div");
           modified.className = "instanceModified";
           modified.textContent = `Modified: ${formatDate(instance.modifiedAt)}`;
-
           meta.append(created, modified);
           item.append(nameRow, meta);
 
@@ -520,10 +718,7 @@
             if (event.button !== 0 || item.classList.contains("renaming")) return;
             const t = performance.now();
             const previous = lastInstanceClick;
-            const isDouble = previous && previous.id === instance.id &&
-              t - previous.time < 450 &&
-              Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 8;
-
+            const isDouble = previous && previous.id === instance.id && t - previous.time < 450 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 8;
             if (isDouble || event.detail >= 2) {
               event.preventDefault();
               event.stopPropagation();
@@ -534,7 +729,6 @@
               beginRenameById(instance.id);
               return;
             }
-
             lastInstanceClick = { id: instance.id, time: t, x: event.clientX, y: event.clientY };
           });
 
@@ -551,6 +745,7 @@
               if (store.currentId === instance.id) return;
               store.currentId = instance.id;
               clearSelection();
+              hideEditingControls();
               saveNow(false);
               loadCurrentView();
               renderAll();
@@ -613,13 +808,11 @@
         if (!nameEl || !nameRow) return;
 
         item.classList.add("renaming");
-        const originalModifiedAt = instance.modifiedAt;
+        suppressNextBoxBlurSave = true;
+        document.activeElement?.blur?.();
+        requestAnimationFrame(() => { suppressNextBoxBlurSave = false; });
 
-        const displayedNameWidth = Math.max(
-          48,
-          Math.ceil(nameEl.getBoundingClientRect().width),
-          measureTextWidthLike(instance.name, nameEl) + 10
-        );
+        const displayedNameWidth = Math.max(48, Math.ceil(nameEl.getBoundingClientRect().width), measureTextWidthLike(instance.name, nameEl) + 10);
         const rowWidth = Math.max(48, Math.floor(nameRow.getBoundingClientRect().width));
         const inputWidth = Math.min(displayedNameWidth, rowWidth);
 
@@ -629,8 +822,6 @@
         input.setAttribute("aria-label", "Rename instance");
         input.style.setProperty("--rename-width", `${inputWidth}px`);
 
-        // Replace only the visible name span. The instance card and its
-        // Created/Modified rows remain in place and keep their size.
         nameEl.replaceWith(input);
         input.focus();
         input.select();
@@ -651,15 +842,12 @@
           if (commit) {
             const nextName = uniqueName(input.value, instance.id);
             if (nextName !== instance.name) {
+              const oldModifiedAt = instance.modifiedAt;
               instance.name = nextName;
+              instance.modifiedAt = oldModifiedAt;
+              saveNow(false);
             }
           }
-
-          // Renaming is metadata-only for the list label; it must never make
-          // the instance look recently modified. This also reverses any
-          // accidental no-op textarea blur save caused by focusing this input.
-          instance.modifiedAt = originalModifiedAt;
-          saveNow(false);
           renderInstanceList();
         };
 
@@ -676,16 +864,13 @@
         input.addEventListener("blur", () => finish(true));
       }
 
-
       function showInstanceMenu(event, instance) {
         instanceMenuTargetId = instance.id;
         instanceMenu.hidden = false;
-
         const width = instanceMenu.offsetWidth || 135;
-        const height = instanceMenu.offsetHeight || 80;
+        const height = instanceMenu.offsetHeight || 110;
         const left = Math.min(event.clientX, window.innerWidth - width - 6);
         const top = Math.min(event.clientY, window.innerHeight - height - 6);
-
         instanceMenu.style.left = `${Math.max(6, left)}px`;
         instanceMenu.style.top = `${Math.max(6, top)}px`;
       }
@@ -697,7 +882,6 @@
 
       function duplicateInstance(source) {
         if (!source) return;
-
         const t = now();
         const idMap = new Map();
         const clone = {
@@ -705,29 +889,21 @@
           name: uniqueName(source.name),
           createdAt: t,
           modifiedAt: t,
+          monospace: Boolean(source.monospace),
           view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
           boxes: [],
           links: []
         };
-
         clone.boxes = (source.boxes || []).map(box => {
           const newId = makeId("box");
           idMap.set(box.id, newId);
           return { ...box, id: newId };
         });
-
-        clone.links = (source.links || [])
-          .map(link => ({
-            ...link,
-            id: makeId("link"),
-            from: idMap.get(link.from),
-            to: idMap.get(link.to)
-          }))
-          .filter(link => link.from && link.to && link.from !== link.to);
-
+        clone.links = (source.links || []).map(link => ({ ...link, id: makeId("link"), from: idMap.get(link.from), to: idMap.get(link.to) })).filter(link => link.from && link.to && link.from !== link.to);
         store.instances.push(clone);
         store.currentId = clone.id;
         clearSelection();
+        hideEditingControls();
         saveNow(false);
         loadCurrentView();
         renderAll();
@@ -737,24 +913,18 @@
         if (!instance) return;
         const ok = window.confirm(`Are you sure you want to delete "${instance.name}"?`);
         if (!ok) return;
-
         const index = store.instances.findIndex(item => item.id === instance.id);
         if (index === -1) return;
-
         const deletingCurrent = store.currentId === instance.id;
         store.instances.splice(index, 1);
-
-        if (!store.instances.length) {
-          store.instances.push(blankInstance(BASE_NAME));
-        }
-
+        if (!store.instances.length) store.instances.push(blankInstance(BASE_NAME, { monospace: false }));
         if (deletingCurrent) {
           const next = store.instances[Math.min(index, store.instances.length - 1)] || store.instances[0];
           store.currentId = next.id;
           clearSelection();
+          hideEditingControls();
           loadCurrentView();
         }
-
         saveNow(false);
         renderAll();
       }
@@ -773,18 +943,15 @@
         scheduleSave(touch, false);
       }
 
-      function clamp(value, min, max) {
-        return Math.max(min, Math.min(max, value));
-      }
+      function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 
       function applyView() {
         world.style.transform = `matrix(${zoom}, 0, 0, ${zoom}, ${panX}, ${panY})`;
         const gridSize = GRID_WORLD_SIZE * zoom;
-        const gx = mod(panX, gridSize);
-        const gy = mod(panY, gridSize);
         viewport.style.setProperty("--grid-size", `${gridSize}px`);
-        viewport.style.setProperty("--grid-x", `${gx}px`);
-        viewport.style.setProperty("--grid-y", `${gy}px`);
+        viewport.style.setProperty("--grid-x", `${mod(panX, gridSize)}px`);
+        viewport.style.setProperty("--grid-y", `${mod(panY, gridSize)}px`);
+        positionEditingControls();
       }
 
       function mod(value, size) {
@@ -794,18 +961,12 @@
 
       function screenToWorld(clientX, clientY) {
         const rect = viewport.getBoundingClientRect();
-        return {
-          x: (clientX - rect.left - panX) / zoom,
-          y: (clientY - rect.top - panY) / zoom
-        };
+        return { x: (clientX - rect.left - panX) / zoom, y: (clientY - rect.top - panY) / zoom };
       }
 
       function screenToViewport(clientX, clientY) {
         const rect = viewport.getBoundingClientRect();
-        return {
-          x: clientX - rect.left,
-          y: clientY - rect.top
-        };
+        return { x: clientX - rect.left, y: clientY - rect.top };
       }
 
       function setViewKeepingWorldAtClient(worldPoint, clientX, clientY) {
@@ -814,10 +975,20 @@
         panY = point.y - worldPoint.y * zoom;
       }
 
+      function syncInstanceControls() {
+        const mono = Boolean(currentInstance().monospace);
+        world.classList.toggle("monospaceText", mono);
+        measureBox.classList.toggle("monospaceMeasure", mono);
+        monospaceToggle.checked = mono;
+      }
+
       function renderAll() {
+        syncInstanceControls();
         renderBoxes();
         renderLines();
         renderInstanceList();
+        syncInstanceControls();
+        positionEditingControls();
       }
 
       function clearSelection() {
@@ -846,8 +1017,7 @@
       }
 
       function syncSelectionClasses() {
-        const boxes = world.querySelectorAll(".box");
-        for (const box of boxes) {
+        for (const box of world.querySelectorAll(".box")) {
           const id = box.dataset.id;
           const selected = selectedIds.has(id);
           box.classList.toggle("selected", selected);
@@ -855,19 +1025,77 @@
         }
       }
 
+      function normalizeBoxLines(box) {
+        if (!box.innerHTML.trim()) {
+          box.innerHTML = '<div class="textLine"><br></div>';
+          return;
+        }
+        const direct = Array.from(box.childNodes);
+        let changed = false;
+        if (!direct.length) {
+          box.innerHTML = '<div class="textLine"><br></div>';
+          return;
+        }
+        for (const node of direct) {
+          if (node.nodeType === Node.ELEMENT_NODE && node.matches("div")) {
+            node.classList.add("textLine");
+            if (!node.innerHTML) node.innerHTML = "<br>";
+          } else if (node.nodeType === Node.ELEMENT_NODE && node.matches(".textLine")) {
+            if (!node.innerHTML) node.innerHTML = "<br>";
+          } else {
+            changed = true;
+          }
+        }
+        if (changed) {
+          const fragLines = [];
+          let current = document.createElement("div");
+          current.className = "textLine";
+          for (const node of Array.from(box.childNodes)) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR") {
+              if (!current.innerHTML) current.innerHTML = "<br>";
+              fragLines.push(current);
+              current = document.createElement("div");
+              current.className = "textLine";
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.matches("div")) {
+              fragLines.push(node);
+            } else {
+              current.appendChild(node);
+            }
+          }
+          if (current.childNodes.length || !fragLines.length) {
+            if (!current.innerHTML) current.innerHTML = "<br>";
+            fragLines.push(current);
+          }
+          box.innerHTML = "";
+          for (const line of fragLines) {
+            line.classList.add("textLine");
+            box.appendChild(line);
+          }
+        }
+      }
+
       function renderBoxes() {
         resizeObserver.disconnect();
         world.querySelectorAll(".box").forEach(box => box.remove());
-
         for (const data of currentInstance().boxes) {
-          const box = document.createElement("textarea");
+          migrateBox(data);
+          const box = document.createElement("div");
           box.className = "box";
           box.dataset.id = data.id;
+          box.contentEditable = "true";
           box.spellcheck = false;
-          box.value = data.text || "";
-          box.wrap = "soft";
+          box.innerHTML = data.html || textToLineHtml(data.text || "");
+          normalizeBoxLines(box);
           placeBox(box, data.x, data.y);
           autoSizeBox(box, data);
+
+          box.addEventListener("focus", () => {
+            selectedLinkId = null;
+            activeFormatBoxId = data.id;
+            updateToolbarState();
+            showEditingControls(data.id);
+            renderLines();
+          });
 
           box.addEventListener("contextmenu", event => {
             event.preventDefault();
@@ -876,31 +1104,64 @@
 
           box.addEventListener("pointerdown", event => onBoxPointerDown(event, data, box));
 
-          box.addEventListener("input", () => {
-            data.text = box.value;
-            autoSizeBox(box, data);
-            requestAnimationFrame(renderLines);
-            scheduleSave(true, true);
+          box.addEventListener("mouseup", () => {
+            activeFormatBoxId = data.id;
+            updateToolbarState();
+            updateActiveLineFromSelection();
+            positionEditingControls();
           });
 
+          box.addEventListener("mousemove", event => {
+            if (activeFormatBoxId !== data.id || document.activeElement !== box) return;
+            const line = lineFromExtendedPoint(event.clientX, event.clientY, box);
+            if (line) {
+              activeLineEl = line;
+              positionLineButton();
+              updateLineButtonState();
+            }
+          });
+
+          box.addEventListener("keydown", event => {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              event.stopPropagation();
+              document.execCommand("insertText", false, "\t");
+              afterBoxEdited(box, data, true);
+              return;
+            }
+            if ((event.ctrlKey || event.metaKey) && ["b", "i", "u"].includes(event.key.toLowerCase())) {
+              event.preventDefault();
+              const key = event.key.toLowerCase();
+              if (key === "b") runFormatCommand("bold");
+              if (key === "i") runFormatCommand("italic");
+              if (key === "u") runFormatCommand("underline");
+              return;
+            }
+          });
+
+          box.addEventListener("keyup", () => {
+            activeFormatBoxId = data.id;
+            updateToolbarState();
+            updateActiveLineFromSelection();
+            positionEditingControls();
+          });
+
+          box.addEventListener("paste", event => {
+            event.preventDefault();
+            const text = event.clipboardData?.getData("text/plain") || "";
+            insertPlainTextWithLines(text);
+            afterBoxEdited(box, data, true);
+          });
+
+          box.addEventListener("input", () => afterBoxEdited(box, data, true));
+
           box.addEventListener("blur", () => {
-            const previousText = data.text || "";
-            const previousWidth = data.w;
-            const previousHeight = data.h;
-            const textChanged = box.value !== previousText;
-
-            if (textChanged) {
-              data.text = box.value;
-            }
-
-            autoSizeBox(box, data);
-            requestAnimationFrame(renderLines);
-
-            if (textChanged) {
-              scheduleSave(true, true);
-            } else if (data.w !== previousWidth || data.h !== previousHeight) {
-              saveNow(false);
-            }
+            setTimeout(() => {
+              if (formatToolbar.contains(document.activeElement) || lineButton === document.activeElement) return;
+              if (suppressNextBoxBlurSave) return;
+              afterBoxEdited(box, data, true);
+              if (activeFormatBoxId === data.id) hideEditingControls();
+            }, 0);
           });
 
           world.appendChild(box);
@@ -909,18 +1170,30 @@
         syncSelectionClasses();
       }
 
+      function afterBoxEdited(box, data, touchModified) {
+        normalizeBoxLines(box);
+        data.html = box.innerHTML;
+        data.text = box.innerText.replace(/\n$/, "");
+        autoSizeBox(box, data);
+        requestAnimationFrame(() => {
+          renderLines();
+          positionEditingControls();
+          updateToolbarState();
+        });
+        scheduleSave(touchModified, true);
+      }
+
       function placeBox(element, x, y) {
         element.style.left = `${x}px`;
         element.style.top = `${y}px`;
       }
 
       function autoSizeBox(element, data = null) {
-        const text = element.value || "";
-        measureBox.textContent = text.length ? text + (text.endsWith("\n") ? "\u200b" : "") : " ";
-        const measuredWidth = Math.ceil(measureBox.offsetWidth + 2);
-        const measuredHeight = Math.ceil(measureBox.offsetHeight + 2);
-        const width = clamp(measuredWidth, 24, 480);
-        const height = Math.max(24, measuredHeight);
+        measureBox.innerHTML = element.innerHTML || '<div class="textLine"><br></div>';
+        measureBox.style.maxWidth = "480px";
+        const rect = measureBox.getBoundingClientRect();
+        const width = clamp(Math.ceil(rect.width + 2), 24, 480);
+        const height = Math.max(24, Math.ceil(rect.height + 2));
         element.style.width = `${width}px`;
         element.style.height = `${height}px`;
         if (data) {
@@ -933,12 +1206,16 @@
         if (event.button === 0) {
           const hadSelectedLink = selectedLinkId !== null;
           selectedLinkId = null;
+          activeFormatBoxId = data.id;
           if (hadSelectedLink) renderLines();
+          updateToolbarState();
+          showEditingControls(data.id);
         }
 
         if (event.button === 0 && linkArmed && selectedIds.size) {
           event.preventDefault();
           event.stopPropagation();
+          document.activeElement?.blur?.();
           connectSelectionTo(data.id);
           linkArmed = false;
           syncSelectionClasses();
@@ -958,17 +1235,15 @@
           } else if (!selectedIds.has(data.id)) {
             selectedIds = new Set([data.id]);
           }
-
+          selectedLinkId = null;
           linkArmed = selectedIds.size > 0;
           syncSelectionClasses();
-
           const idsToMove = selectedIds.has(data.id) ? [...selectedIds] : [data.id];
-          beginBoxDrag(event, box, idsToMove, "right");
-          return;
+          beginBoxDrag(event, box, idsToMove);
         }
       }
 
-      function beginBoxDrag(event, element, idsToMove, buttonName) {
+      function beginBoxDrag(event, element, idsToMove) {
         const originals = new Map();
         for (const id of idsToMove) {
           const item = getBoxData(id);
@@ -976,7 +1251,6 @@
         }
         dragState = {
           pointerId: event.pointerId,
-          buttonName,
           startX: event.clientX,
           startY: event.clientY,
           ids: [...originals.keys()],
@@ -1009,6 +1283,7 @@
         inst.boxes = inst.boxes.filter(box => !selectedIds.has(box.id));
         inst.links = inst.links.filter(link => !selectedIds.has(link.from) && !selectedIds.has(link.to));
         clearSelection();
+        hideEditingControls();
         scheduleSave(true, true);
         renderAll();
       }
@@ -1023,13 +1298,8 @@
         renderLines();
       }
 
-      function getBoxData(id) {
-        return currentInstance().boxes.find(box => box.id === id);
-      }
-
-      function getBoxElement(id) {
-        return world.querySelector(`.box[data-id="${CSS.escape(id)}"]`);
-      }
+      function getBoxData(id) { return currentInstance().boxes.find(box => box.id === id); }
+      function getBoxElement(id) { return world.querySelector(`.box[data-id="${CSS.escape(id)}"]`); }
 
       function renderLines() {
         [...svg.querySelectorAll("line")].forEach(line => line.remove());
@@ -1078,6 +1348,7 @@
             event.preventDefault();
             event.stopPropagation();
             document.activeElement?.blur?.();
+            hideEditingControls();
             selectLink(link.id);
           });
           hit.addEventListener("contextmenu", event => {
@@ -1093,12 +1364,7 @@
         const element = getBoxElement(id);
         if (!data || !element) return null;
         autoSizeBox(element, data);
-        return {
-          x: data.x,
-          y: data.y,
-          w: data.w || element.offsetWidth,
-          h: data.h || element.offsetHeight
-        };
+        return { x: data.x, y: data.y, w: data.w || element.offsetWidth, h: data.h || element.offsetHeight };
       }
 
       function sideCenters(rect) {
@@ -1114,7 +1380,6 @@
         const fromSides = sideCenters(fromRect);
         const toSides = sideCenters(toRect);
         let best = { start: fromSides[0], end: toSides[0], distance: Infinity };
-
         for (const start of fromSides) {
           for (const end of toSides) {
             const dx = end.x - start.x;
@@ -1133,7 +1398,10 @@
           id: makeId("box"),
           x: Math.round(point.x),
           y: Math.round(point.y),
-          text: ""
+          text: "",
+          html: '<div class="textLine"><br></div>',
+          w: 24,
+          h: 24
         };
         inst.boxes.push(box);
         selectedIds = new Set([box.id]);
@@ -1141,12 +1409,11 @@
         linkArmed = false;
         scheduleSave(true, true);
         renderAll();
-
         requestAnimationFrame(() => {
           const element = getBoxElement(box.id);
           if (element) {
             element.focus();
-            element.setSelectionRange(element.value.length, element.value.length);
+            placeCaretAtEnd(element);
           }
         });
       }
@@ -1154,12 +1421,7 @@
       function getWorldRectFromViewportRect(rect) {
         const a = screenToWorld(rect.left, rect.top);
         const b = screenToWorld(rect.right, rect.bottom);
-        return {
-          left: Math.min(a.x, b.x),
-          right: Math.max(a.x, b.x),
-          top: Math.min(a.y, b.y),
-          bottom: Math.max(a.y, b.y)
-        };
+        return { left: Math.min(a.x, b.x), right: Math.max(a.x, b.x), top: Math.min(a.y, b.y), bottom: Math.max(a.y, b.y) };
       }
 
       function getSelectedInWorldRect(worldRect) {
@@ -1168,20 +1430,13 @@
           const element = getBoxElement(box.id);
           if (!element) continue;
           autoSizeBox(element, box);
-          const boxRect = {
-            left: box.x,
-            right: box.x + (box.w || element.offsetWidth),
-            top: box.y,
-            bottom: box.y + (box.h || element.offsetHeight)
-          };
+          const boxRect = { left: box.x, right: box.x + (box.w || element.offsetWidth), top: box.y, bottom: box.y + (box.h || element.offsetHeight) };
           if (rectsOverlap(worldRect, boxRect)) ids.push(box.id);
         }
         return ids;
       }
 
-      function rectsOverlap(a, b) {
-        return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
-      }
+      function rectsOverlap(a, b) { return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top; }
 
       function updateMarqueeVisual() {
         if (!selectState) return;
@@ -1211,6 +1466,394 @@
         selectedLinkId = null;
         linkArmed = selectedIds.size > 0;
         syncSelectionClasses();
+      }
+
+      function showEditingControls(boxId) {
+        activeFormatBoxId = boxId;
+        formatToolbar.hidden = false;
+        updateActiveLineFromSelection();
+        updateToolbarState();
+        positionEditingControls();
+      }
+
+      function hideEditingControls() {
+        formatToolbar.hidden = true;
+        lineButton.hidden = true;
+        clearControlHitZones();
+        activeFormatBoxId = null;
+        activeLineEl = null;
+      }
+
+      function positionEditingControls() {
+        positionFormatToolbar();
+        positionLineButton();
+        syncControlHitZones();
+      }
+
+      function clearControlHitZones() {
+        if (!controlHitLayer) return;
+        controlHitLayer.hidden = true;
+        controlHitLayer.replaceChildren();
+        setHitHoveredControl(null);
+        document.body.classList.remove("control-hit");
+      }
+
+      function syncControlHitZones() {
+        if (!controlHitLayer) return;
+        controlHitLayer.replaceChildren();
+
+        const controls = [];
+        if (!formatToolbar.hidden) {
+          for (const button of formatToolbar.querySelectorAll("button[data-format]")) {
+            controls.push({ type: "format", button, rect: button.getBoundingClientRect() });
+          }
+        }
+        if (!lineButton.hidden) {
+          const lineRect = activeLineEl?.getBoundingClientRect?.();
+          const box = activeFormatBoxId ? getBoxElement(activeFormatBoxId) : null;
+          const boxRect = box?.getBoundingClientRect?.();
+          let lineHitRect = null;
+          if (lineRect && boxRect) {
+            const lineVerticalPad = Math.max(CONTROL_HIT_MARGIN, 8);
+            lineHitRect = {
+              left: Math.min(lineButton.getBoundingClientRect().left - CONTROL_HIT_MARGIN, boxRect.left),
+              top: lineRect.top - lineVerticalPad,
+              right: boxRect.right + CONTROL_HIT_MARGIN,
+              bottom: lineRect.bottom + lineVerticalPad
+            };
+          }
+          controls.push({
+            type: "line",
+            button: lineButton,
+            rect: lineButton.getBoundingClientRect(),
+            expandedOverride: lineHitRect
+          });
+        }
+
+        const usableControls = controls.filter(control => control.rect.width > 0 && control.rect.height > 0);
+        if (!usableControls.length) {
+          controlHitLayer.hidden = true;
+          setHitHoveredControl(null);
+          document.body.classList.remove("control-hit");
+          return;
+        }
+
+        controlHitLayer.hidden = false;
+        const margin = CONTROL_HIT_MARGIN;
+        const vpRect = viewport.getBoundingClientRect();
+        const records = usableControls.map(control => ({
+          ...control,
+          expanded: control.expandedOverride || {
+            left: control.rect.left - margin,
+            top: control.rect.top - margin,
+            right: control.rect.right + margin,
+            bottom: control.rect.bottom + margin
+          }
+        }));
+
+        const clusters = [];
+        for (const record of records) {
+          let placed = false;
+          for (const cluster of clusters) {
+            if (rectsTouch(cluster.bounds, record.expanded)) {
+              cluster.records.push(record);
+              cluster.bounds = unionRects(cluster.bounds, record.expanded);
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) clusters.push({ records: [record], bounds: { ...record.expanded } });
+        }
+
+        // Merge once more in case adding a later record bridged two earlier clusters.
+        for (let i = 0; i < clusters.length; i += 1) {
+          for (let j = i + 1; j < clusters.length; j += 1) {
+            if (rectsTouch(clusters[i].bounds, clusters[j].bounds)) {
+              clusters[i].records.push(...clusters[j].records);
+              clusters[i].bounds = unionRects(clusters[i].bounds, clusters[j].bounds);
+              clusters.splice(j, 1);
+              j -= 1;
+            }
+          }
+        }
+
+        for (const cluster of clusters) addControlHitZone(cluster, vpRect);
+      }
+
+      function rectsTouch(a, b) {
+        return !(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top);
+      }
+
+      function unionRects(a, b) {
+        return {
+          left: Math.min(a.left, b.left),
+          top: Math.min(a.top, b.top),
+          right: Math.max(a.right, b.right),
+          bottom: Math.max(a.bottom, b.bottom)
+        };
+      }
+
+      function chooseControlFromPoint(cluster, clientX, clientY) {
+        const insideVisible = cluster.records.filter(record => (
+          clientX >= record.rect.left && clientX <= record.rect.right &&
+          clientY >= record.rect.top && clientY <= record.rect.bottom
+        ));
+        const choices = insideVisible.length ? insideVisible : cluster.records.filter(record => (
+          clientX >= record.expanded.left && clientX <= record.expanded.right &&
+          clientY >= record.expanded.top && clientY <= record.expanded.bottom
+        ));
+        if (!choices.length) return null;
+
+        let best = choices[0];
+        let bestDistance = Infinity;
+        for (const record of choices) {
+          const centerX = record.rect.left + record.rect.width / 2;
+          const centerY = record.rect.top + record.rect.height / 2;
+          const dx = clientX - centerX;
+          const dy = clientY - centerY;
+          const distance = dx * dx + dy * dy;
+          if (distance < bestDistance) {
+            best = record;
+            bestDistance = distance;
+          }
+        }
+        return best;
+      }
+
+      function addControlHitZone(cluster, vpRect) {
+        const bounds = cluster.bounds;
+        const zone = document.createElement("div");
+        zone.className = "controlHitZone";
+        zone.style.left = `${Math.floor(bounds.left - vpRect.left)}px`;
+        zone.style.top = `${Math.floor(bounds.top - vpRect.top)}px`;
+        zone.style.width = `${Math.max(1, Math.ceil(bounds.right - bounds.left))}px`;
+        zone.style.height = `${Math.max(1, Math.ceil(bounds.bottom - bounds.top))}px`;
+
+        const refreshHover = event => {
+          const control = chooseControlFromPoint(cluster, event.clientX, event.clientY);
+          setHitHoveredControl(control?.button || null);
+          document.body.classList.toggle("control-hit", Boolean(control));
+          return control;
+        };
+
+        zone.addEventListener("pointerenter", refreshHover);
+        zone.addEventListener("pointermove", refreshHover);
+        zone.addEventListener("pointerleave", () => {
+          setHitHoveredControl(null);
+          document.body.classList.remove("control-hit");
+        });
+        zone.addEventListener("pointerdown", event => {
+          const control = refreshHover(event);
+          if (event.button !== 0 || !control) return;
+          event.preventDefault();
+          event.stopPropagation();
+          zone.__downControl = control;
+        });
+        zone.addEventListener("click", event => {
+          const control = chooseControlFromPoint(cluster, event.clientX, event.clientY) || zone.__downControl;
+          zone.__downControl = null;
+          if (!control) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setHitHoveredControl(control.button);
+          executeEditingControl(control);
+        });
+        zone.addEventListener("contextmenu", event => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        controlHitLayer.appendChild(zone);
+      }
+
+      function positionFormatToolbar() {
+        if (formatToolbar.hidden || !activeFormatBoxId) return;
+        const element = getBoxElement(activeFormatBoxId);
+        if (!element) return;
+        const boxRect = element.getBoundingClientRect();
+        const vpRect = viewport.getBoundingClientRect();
+        const buttons = Array.from(formatToolbar.querySelectorAll("button[data-format]"));
+        const buttonWidth = CONTROL_VISUAL_SIZE;
+        const buttonHeight = CONTROL_VISUAL_SIZE;
+        const gap = 3;
+        const startLeft = Math.max(0, boxRect.left - vpRect.left);
+        const top = Math.max(0, boxRect.top - vpRect.top - buttonHeight - 6);
+        formatToolbar.style.left = "0px";
+        formatToolbar.style.top = "0px";
+        for (let i = 0; i < buttons.length; i += 1) {
+          buttons[i].style.left = `${Math.round(startLeft + i * (buttonWidth + gap))}px`;
+          buttons[i].style.top = `${Math.round(top)}px`;
+        }
+        syncControlHitZones();
+      }
+
+      function positionLineButton() {
+        if (!activeFormatBoxId || !activeLineEl || document.activeElement !== getBoxElement(activeFormatBoxId)) {
+          lineButton.hidden = true;
+          syncControlHitZones();
+          return;
+        }
+        const lineRect = activeLineEl.getBoundingClientRect();
+        const box = getBoxElement(activeFormatBoxId);
+        const boxRect = box.getBoundingClientRect();
+        const vpRect = viewport.getBoundingClientRect();
+        lineButton.hidden = false;
+        const visualCenterY = lineRect.top - vpRect.top + (lineRect.height / 2);
+        const left = boxRect.left - vpRect.left - CONTROL_VISUAL_SIZE - 6;
+        const top = visualCenterY - (CONTROL_VISUAL_SIZE / 2);
+        lineButton.style.left = `${Math.round(left)}px`;
+        lineButton.style.top = `${Math.round(top)}px`;
+        updateLineButtonState();
+        syncControlHitZones();
+      }
+
+      function updateToolbarState() {
+        if (!activeFormatBoxId) return;
+        const box = getBoxElement(activeFormatBoxId);
+        if (!box) return;
+        for (const button of formatToolbar.querySelectorAll("button[data-format]")) {
+          const command = commandForFormat(button.dataset.format);
+          let active = false;
+          try { active = document.queryCommandState(command); } catch (e) { active = false; }
+          button.classList.toggle("active", Boolean(active));
+        }
+        updateLineButtonState();
+      }
+
+      function updateLineButtonState() {
+        lineButton.classList.toggle("active", Boolean(activeLineEl?.classList?.contains("bigLine")));
+      }
+
+      function commandForFormat(format) {
+        if (format === "strike") return "strikeThrough";
+        return format;
+      }
+
+      function runFormatCommand(format) {
+        const box = getBoxElement(activeFormatBoxId);
+        const data = getBoxData(activeFormatBoxId);
+        if (!box || !data) return;
+        box.focus();
+        document.execCommand(commandForFormat(format), false, null);
+        afterBoxEdited(box, data, true);
+      }
+
+      function updateActiveLineFromSelection() {
+        const box = getBoxElement(activeFormatBoxId);
+        if (!box) return;
+        const selection = document.getSelection();
+        if (!selection || !selection.anchorNode || !box.contains(selection.anchorNode)) return;
+        const line = closestLine(selection.anchorNode, box);
+        if (line) activeLineEl = line;
+      }
+
+      function closestLine(node, box) {
+        let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        while (el && el !== box) {
+          if (el.classList?.contains("textLine")) return el;
+          el = el.parentElement;
+        }
+        return null;
+      }
+
+      function lineFromPoint(clientX, clientY, box) {
+        let range = null;
+        if (document.caretPositionFromPoint) {
+          const pos = document.caretPositionFromPoint(clientX, clientY);
+          if (pos) {
+            range = document.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+          }
+        } else if (document.caretRangeFromPoint) {
+          range = document.caretRangeFromPoint(clientX, clientY);
+        }
+        if (range) {
+          const line = closestLine(range.startContainer, box);
+          if (line) return line;
+        }
+        for (const el of document.elementsFromPoint(clientX, clientY)) {
+          if (el === box || box.contains(el)) {
+            const line = el.classList?.contains("textLine") ? el : el.closest?.(".textLine");
+            if (line && box.contains(line)) return line;
+          }
+        }
+        return null;
+      }
+
+      function lineFromExtendedPoint(clientX, clientY, box) {
+        const boxRect = box.getBoundingClientRect();
+        const leftReach = 90;
+        const rightReach = 14;
+        const verticalReach = 8;
+        const insideExtendedBand = (
+          clientX >= boxRect.left - leftReach &&
+          clientX <= boxRect.right + rightReach &&
+          clientY >= boxRect.top - verticalReach &&
+          clientY <= boxRect.bottom + verticalReach
+        );
+        if (!insideExtendedBand) return null;
+
+        if (clientX >= boxRect.left && clientX <= boxRect.right) {
+          const direct = lineFromPoint(clientX, clientY, box);
+          if (direct) return direct;
+        }
+
+        const lines = Array.from(box.querySelectorAll(".textLine"));
+        let closest = null;
+        let closestDistance = Infinity;
+        for (const line of lines) {
+          const rect = line.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(clientY - centerY);
+          if (distance < closestDistance) {
+            closest = line;
+            closestDistance = distance;
+          }
+        }
+        return closest;
+      }
+
+      function updateLineHoverFromPointer(event) {
+        if (!activeFormatBoxId || dragState || panState || selectState) return;
+        if (formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target)) return;
+        const box = getBoxElement(activeFormatBoxId);
+        if (!box || document.activeElement !== box) return;
+        const line = lineFromExtendedPoint(event.clientX, event.clientY, box);
+        if (!line) return;
+        activeLineEl = line;
+        positionLineButton();
+        updateLineButtonState();
+      }
+
+      function toggleCurrentLineBig() {
+        const box = getBoxElement(activeFormatBoxId);
+        const data = getBoxData(activeFormatBoxId);
+        if (!box || !data) return;
+        if (!activeLineEl || !box.contains(activeLineEl)) updateActiveLineFromSelection();
+        if (!activeLineEl) return;
+        activeLineEl.classList.toggle("bigLine");
+        afterBoxEdited(box, data, true);
+        box.focus();
+      }
+
+      function insertPlainTextWithLines(text) {
+        const selection = document.getSelection();
+        if (!selection || !selection.rangeCount) return;
+        selection.deleteFromDocument();
+        const lines = String(text).split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          if (i > 0) document.execCommand("insertHTML", false, '<div class="textLine"><br></div>');
+          if (lines[i]) document.execCommand("insertText", false, lines[i]);
+        }
+      }
+
+      function placeCaretAtEnd(element) {
+        element.focus();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        range.collapse(false);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
       }
 
       document.addEventListener("pointermove", event => {
@@ -1253,7 +1896,6 @@
             panState.moved = true;
             document.body.classList.add("noSelect");
           }
-
           setViewKeepingWorldAtClient(panState.grabWorld, event.clientX, event.clientY);
           applyView();
           saveCurrentView(false);
@@ -1323,22 +1965,15 @@
       viewport.addEventListener("pointerdown", event => {
         const onBox = event.target.closest && event.target.closest(".box");
         const onLink = event.target.closest && event.target.closest(".linkHit");
-        if (onBox || onLink) return;
+        if (onBox || onLink || formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target)) return;
 
         if (event.button === 0) {
           hideInstanceMenu();
           document.activeElement?.blur?.();
+          hideEditingControls();
           event.preventDefault();
           const grabWorld = screenToWorld(event.clientX, event.clientY);
-          panState = {
-            pointerId: event.pointerId,
-            grabWorld,
-            startX: event.clientX,
-            startY: event.clientY,
-            lastClientX: event.clientX,
-            lastClientY: event.clientY,
-            moved: false
-          };
+          panState = { pointerId: event.pointerId, grabWorld, startX: event.clientX, startY: event.clientY, lastClientX: event.clientX, lastClientY: event.clientY, moved: false };
           try { viewport.setPointerCapture(event.pointerId); } catch (e) {}
           viewport.classList.add("panning");
           return;
@@ -1348,6 +1983,7 @@
           hideInstanceMenu();
           event.preventDefault();
           document.activeElement?.blur?.();
+          hideEditingControls();
           const additive = event.ctrlKey || event.metaKey;
           selectedLinkId = null;
           if (!additive) {
@@ -1356,28 +1992,20 @@
             syncSelectionClasses();
           }
           const startViewport = screenToViewport(event.clientX, event.clientY);
-          selectState = {
-            pointerId: event.pointerId,
-            startClient: { x: event.clientX, y: event.clientY },
-            startViewport,
-            currentViewport: startViewport,
-            baseIds: new Set(selectedIds),
-            additive,
-            moved: false
-          };
+          selectState = { pointerId: event.pointerId, startClient: { x: event.clientX, y: event.clientY }, startViewport, currentViewport: startViewport, baseIds: new Set(selectedIds), additive, moved: false };
           try { viewport.setPointerCapture(event.pointerId); } catch (e) {}
         }
       });
 
+      viewport.addEventListener("mousemove", updateLineHoverFromPointer);
+
       viewport.addEventListener("dblclick", event => {
-        if (event.target.closest && (event.target.closest(".box") || event.target.closest(".linkHit"))) return;
+        if (event.target.closest && (event.target.closest(".box") || event.target.closest(".linkHit") || formatToolbar.contains(event.target) || lineButton.contains(event.target) || controlHitLayer.contains(event.target) || controlHitLayer.contains(event.target))) return;
         event.preventDefault();
         createBoxAt(event.clientX, event.clientY);
       });
 
-      viewport.addEventListener("contextmenu", event => {
-        event.preventDefault();
-      });
+      viewport.addEventListener("contextmenu", event => { event.preventDefault(); });
 
       viewport.addEventListener("lostpointercapture", () => {
         if (panState) {
@@ -1396,12 +2024,8 @@
       viewport.addEventListener("wheel", event => {
         event.preventDefault();
         hideInstanceMenu();
-
         const nextZoom = clamp(zoom * Math.exp(-event.deltaY * 0.001), MIN_ZOOM, MAX_ZOOM);
-
         if (panState) {
-          // While panning, the exact world coordinate initially grabbed must stay
-          // under the live pointer. Zoom changes should not introduce drift.
           zoom = nextZoom;
           panState.lastClientX = event.clientX;
           panState.lastClientY = event.clientY;
@@ -1411,19 +2035,28 @@
           zoom = nextZoom;
           setViewKeepingWorldAtClient(cursorWorld, event.clientX, event.clientY);
         }
-
         applyView();
         saveCurrentView(false);
       }, { passive: false });
 
+      document.addEventListener("selectionchange", () => {
+        const box = getBoxElement(activeFormatBoxId);
+        const selection = document.getSelection();
+        if (!box || !selection || !selection.anchorNode || !box.contains(selection.anchorNode)) return;
+        updateToolbarState();
+        updateActiveLineFromSelection();
+        positionEditingControls();
+      });
+
       document.addEventListener("keydown", event => {
         const active = document.activeElement;
-        const typing = active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || active.isContentEditable);
+        const typing = active && (active.tagName === "INPUT" || active.isContentEditable);
         if (event.key === "Escape") {
           hideInstanceMenu();
           clearSelection();
           syncSelectionClasses();
           renderLines();
+          if (active?.isContentEditable) active.blur();
           return;
         }
         if ((event.key === "Delete" || event.key === "Backspace") && !typing) {
@@ -1439,15 +2072,49 @@
         }
       });
 
+      document.addEventListener("contextmenu", event => { event.preventDefault(); });
 
-      document.addEventListener("contextmenu", event => {
+      let hitHoveredControlButton = null;
+
+      function setHitHoveredControl(button) {
+        if (hitHoveredControlButton === button) return;
+        if (hitHoveredControlButton) hitHoveredControlButton.classList.remove("hit-hover");
+        hitHoveredControlButton = button || null;
+        if (hitHoveredControlButton) hitHoveredControlButton.classList.add("hit-hover");
+      }
+
+      function executeEditingControl(control) {
+        if (!control) return;
+        if (control.type === "format") runFormatCommand(control.button.dataset.format);
+        else toggleCurrentLineBig();
+      }
+
+      formatToolbar.addEventListener("pointerdown", event => {
         event.preventDefault();
+        event.stopPropagation();
+      });
+
+      formatToolbar.addEventListener("click", event => {
+        const button = event.target.closest("button[data-format]");
+        if (!button || !activeFormatBoxId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        runFormatCommand(button.dataset.format);
+      });
+
+      lineButton.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      lineButton.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleCurrentLineBig();
       });
 
       document.addEventListener("pointerdown", event => {
-        if (!instanceMenu.hidden && !instanceMenu.contains(event.target)) {
-          hideInstanceMenu();
-        }
+        if (!instanceMenu.hidden && !instanceMenu.contains(event.target)) hideInstanceMenu();
       });
 
       instanceMenu.addEventListener("contextmenu", event => {
@@ -1455,9 +2122,7 @@
         event.stopPropagation();
       });
 
-      instanceMenu.addEventListener("pointerdown", event => {
-        event.stopPropagation();
-      });
+      instanceMenu.addEventListener("pointerdown", event => { event.stopPropagation(); });
 
       renameInstanceButton.addEventListener("click", () => {
         const id = instanceMenuTargetId;
@@ -1480,10 +2145,11 @@
       newForm.addEventListener("submit", event => {
         event.preventDefault();
         const requestedName = newName.value;
-        const instance = blankInstance(uniqueName(requestedName));
+        const instance = blankInstance(uniqueName(requestedName), { monospace: Boolean(currentInstance().monospace) });
         store.instances.push(instance);
         store.currentId = instance.id;
         clearSelection();
+        hideEditingControls();
         saveNow(false);
         loadCurrentView();
         renderAll();
@@ -1494,6 +2160,16 @@
         store.sort = sortSelect.value;
         saveNow(false);
         renderInstanceList();
+      });
+
+      monospaceToggle.addEventListener("change", () => {
+        const inst = currentInstance();
+        inst.monospace = monospaceToggle.checked;
+        saveNow(false);
+        syncInstanceControls();
+        renderBoxes();
+        renderLines();
+        positionEditingControls();
       });
 
       window.addEventListener("beforeunload", () => saveNow(false));
