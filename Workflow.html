@@ -613,6 +613,7 @@
         if (!nameEl || !nameRow) return;
 
         item.classList.add("renaming");
+        const originalModifiedAt = instance.modifiedAt;
 
         const displayedNameWidth = Math.max(
           48,
@@ -651,10 +652,14 @@
             const nextName = uniqueName(input.value, instance.id);
             if (nextName !== instance.name) {
               instance.name = nextName;
-              instance.modifiedAt = now();
-              saveNow(false);
             }
           }
+
+          // Renaming is metadata-only for the list label; it must never make
+          // the instance look recently modified. This also reverses any
+          // accidental no-op textarea blur save caused by focusing this input.
+          instance.modifiedAt = originalModifiedAt;
+          saveNow(false);
           renderInstanceList();
         };
 
@@ -879,10 +884,23 @@
           });
 
           box.addEventListener("blur", () => {
-            data.text = box.value;
+            const previousText = data.text || "";
+            const previousWidth = data.w;
+            const previousHeight = data.h;
+            const textChanged = box.value !== previousText;
+
+            if (textChanged) {
+              data.text = box.value;
+            }
+
             autoSizeBox(box, data);
             requestAnimationFrame(renderLines);
-            scheduleSave(true, true);
+
+            if (textChanged) {
+              scheduleSave(true, true);
+            } else if (data.w !== previousWidth || data.h !== previousHeight) {
+              saveNow(false);
+            }
           });
 
           world.appendChild(box);
