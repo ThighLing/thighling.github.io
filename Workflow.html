@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v29_click4_caret_fix: 4th monospace click uses a true caret click instead of run selection -->
+  <!-- controls_v30_monospace_autoindent: monospace Enter carries leading spaces/tabs to the new line -->
   <style>
     :root {
       --panel-width: 260px;
@@ -1206,6 +1206,13 @@
         selection.addRange(range);
       }
 
+      function leadingIndentForLine(line) {
+        if (!line) return "";
+        const raw = line.textContent || "";
+        const match = raw.match(/^[\t \u00a0]*/);
+        return (match ? match[0] : "").replaceAll("\u00a0", " ");
+      }
+
       function insertUnhashedLineBreak(box, data) {
         const selection = document.getSelection();
         if (!selection || !selection.rangeCount) return false;
@@ -1232,11 +1239,16 @@
           return false;
         }
 
+        const shouldCarryIndent = Boolean(currentInstance().monospace);
+        const carriedIndent = shouldCarryIndent ? leadingIndentForLine(line) : "";
         const afterFragment = afterRange.extractContents();
         const newLine = document.createElement("div");
         newLine.className = "textLine";
         newLine.classList.remove("bigLine");
 
+        if (carriedIndent) {
+          newLine.appendChild(document.createTextNode(carriedIndent));
+        }
         if (afterFragment.childNodes.length) {
           newLine.appendChild(afterFragment);
         }
