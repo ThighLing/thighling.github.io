@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v18_monospace_tripleclick: adds monospace Notepad++ style triple-click line selection -->
+  <!-- controls_v19_format_buttons_fix: fixes B/I/U/S/# buttons so visible buttons are directly clickable again -->
   <style>
     :root {
       --panel-width: 260px;
@@ -86,7 +86,8 @@
     }
 
     #monospaceControl,
-    #autoBoldControl {
+    #autoBoldControl,
+    #firstLineHashControl {
       display: flex;
       align-items: center;
       gap: 7px;
@@ -101,12 +102,14 @@
       padding-top: 8px;
     }
 
-    #autoBoldControl {
+    #autoBoldControl,
+    #firstLineHashControl {
       margin-top: 0;
     }
 
     #sidePanel #monospaceToggle,
-    #sidePanel #autoBoldToggle {
+    #sidePanel #autoBoldToggle,
+    #sidePanel #firstLineHashToggle {
       width: auto;
       margin: 0;
       accent-color: #fff;
@@ -267,6 +270,9 @@
     .box .textLine.bigLine {
       font-size: 32px;
       line-height: 36px;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
     }
 
     .monospaceText .box,
@@ -326,6 +332,9 @@
     #measureBox .textLine.bigLine {
       font-size: 32px;
       line-height: 36px;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
     }
 
     #formatToolbar,
@@ -367,7 +376,7 @@
       text-align: center;
       overflow: hidden;
       touch-action: none;
-      pointer-events: none;
+      pointer-events: auto;
       outline: none;
       box-shadow: none;
       display: flex;
@@ -480,6 +489,10 @@
         <input id="autoBoldToggle" type="checkbox" />
         <span># auto bold</span>
       </label>
+      <label id="firstLineHashControl" title="Automatically make the first line of each box # sized in this instance">
+        <input id="firstLineHashToggle" type="checkbox" />
+        <span>First line #</span>
+      </label>
     </aside>
 
     <main id="viewport">
@@ -537,6 +550,7 @@
       const sortSelect = document.getElementById("sortSelect");
       const monospaceToggle = document.getElementById("monospaceToggle");
       const autoBoldToggle = document.getElementById("autoBoldToggle");
+      const firstLineHashToggle = document.getElementById("firstLineHashToggle");
       const instanceMenu = document.getElementById("instanceMenu");
       const renameInstanceButton = document.getElementById("renameInstanceButton");
       const duplicateInstanceButton = document.getElementById("duplicateInstanceButton");
@@ -589,6 +603,7 @@
           modifiedAt: t,
           monospace: Boolean(options.monospace),
           hashAutoBold: Boolean(options.hashAutoBold),
+          firstLineHash: Boolean(options.firstLineHash),
           view: { panX: 0, panY: 0, zoom: 1 },
           boxes: [],
           links: []
@@ -619,6 +634,7 @@
         instance.view ||= { panX: 0, panY: 0, zoom: 1 };
         instance.monospace = Boolean(instance.monospace);
         instance.hashAutoBold = Boolean(instance.hashAutoBold);
+        instance.firstLineHash = Boolean(instance.firstLineHash);
         for (const box of instance.boxes) migrateBox(box);
       }
 
@@ -913,6 +929,7 @@
           modifiedAt: t,
           monospace: Boolean(source.monospace),
           hashAutoBold: Boolean(source.hashAutoBold),
+          firstLineHash: Boolean(source.firstLineHash),
           view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
           boxes: [],
           links: []
@@ -1025,6 +1042,8 @@
 
       function isEditingControlTarget(target) {
         return Boolean(target && (
+          target.closest?.("#formatToolbar button[data-format]") ||
+          target.closest?.("#lineButton") ||
           formatToolbar.contains(target) ||
           lineButton.contains(target)
         ));
@@ -1056,6 +1075,7 @@
         measureBox.classList.toggle("monospaceMeasure", mono);
         monospaceToggle.checked = mono;
         autoBoldToggle.checked = Boolean(currentInstance().hashAutoBold);
+        firstLineHashToggle.checked = Boolean(currentInstance().firstLineHash);
       }
 
       function renderAll() {
@@ -1150,6 +1170,78 @@
         }
       }
 
+
+      function ensureLineNotEmpty(line) {
+        if (!line) return;
+        if (!line.childNodes.length || (!line.textContent && !line.querySelector("br"))) {
+          line.innerHTML = "<br>";
+        }
+      }
+
+      function closestTextLine(node, box) {
+        if (!node || !box) return null;
+        const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+        if (!element) return null;
+        const line = element.closest?.(".textLine");
+        return line && box.contains(line) ? line : null;
+      }
+
+      function placeCaretAtStart(element) {
+        if (!element) return;
+        element.focus();
+        const range = document.createRange();
+        range.setStart(element, 0);
+        range.collapse(true);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      function insertUnhashedLineBreak(box, data) {
+        const selection = document.getSelection();
+        if (!selection || !selection.rangeCount) return false;
+        let range = selection.getRangeAt(0);
+        if (!box.contains(range.commonAncestorContainer)) return false;
+
+        if (!range.collapsed) {
+          range.deleteContents();
+          range = selection.getRangeAt(0);
+        }
+
+        let line = closestTextLine(range.startContainer, box);
+        if (!line) {
+          normalizeBoxLines(box);
+          line = closestTextLine(selection.anchorNode, box) || box.querySelector(".textLine");
+        }
+        if (!line) return false;
+
+        const afterRange = document.createRange();
+        try {
+          afterRange.setStart(range.startContainer, range.startOffset);
+          afterRange.setEnd(line, line.childNodes.length);
+        } catch (e) {
+          return false;
+        }
+
+        const afterFragment = afterRange.extractContents();
+        const newLine = document.createElement("div");
+        newLine.className = "textLine";
+        newLine.classList.remove("bigLine");
+
+        if (afterFragment.childNodes.length) {
+          newLine.appendChild(afterFragment);
+        }
+        ensureLineNotEmpty(line);
+        ensureLineNotEmpty(newLine);
+        line.after(newLine);
+        placeCaretAtStart(newLine);
+        activeLineEl = newLine;
+        afterBoxEdited(box, data, true);
+        updateLineButtonState();
+        positionEditingControls();
+        return true;
+      }
+
       function renderBoxes() {
         resizeObserver.disconnect();
         world.querySelectorAll(".box").forEach(box => box.remove());
@@ -1203,6 +1295,12 @@
           });
 
           box.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              insertUnhashedLineBreak(box, data);
+              return;
+            }
             if (event.key === "Tab") {
               event.preventDefault();
               event.stopPropagation();
@@ -1223,7 +1321,8 @@
           box.addEventListener("keyup", () => {
             activeFormatBoxId = data.id;
             updateToolbarState();
-            updateActiveLineFromSelection();
+            // Do not move the # button to the caret while typing.
+            // It follows the hovered/clicked line instead.
             positionEditingControls();
           });
 
@@ -1271,9 +1370,12 @@
 
       function autoSizeBox(element, data = null) {
         measureBox.innerHTML = element.innerHTML || '<div class="textLine"><br></div>';
-        measureBox.style.maxWidth = "480px";
+        const hasBigLine = Boolean(element.querySelector?.(".textLine.bigLine"));
+        measureBox.style.maxWidth = hasBigLine ? "none" : "480px";
         const rect = measureBox.getBoundingClientRect();
-        const width = clamp(Math.ceil(rect.width + 2), 24, 480);
+        const measuredWidth = Math.max(rect.width, measureBox.scrollWidth);
+        const maxWidth = hasBigLine ? 4000 : 480;
+        const width = clamp(Math.ceil(measuredWidth + 2), 24, maxWidth);
         const height = Math.max(24, Math.ceil(rect.height + 2));
         element.style.width = `${width}px`;
         element.style.height = `${height}px`;
@@ -1298,7 +1400,7 @@
           event.stopPropagation();
           document.activeElement?.blur?.();
           connectSelectionTo(data.id);
-          linkArmed = false;
+          clearSelection();
           syncSelectionClasses();
           renderLines();
           return;
@@ -1434,6 +1536,17 @@
             hideEditingControls();
             selectLink(link.id);
           });
+          hit.addEventListener("dblclick", event => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            document.activeElement?.blur?.();
+            clearBrowserTextSelection();
+            hideEditingControls();
+            selectedLinkId = link.id;
+            deleteSelectedLink();
+          });
           hit.addEventListener("contextmenu", event => {
             event.preventDefault();
             event.stopPropagation();
@@ -1477,17 +1590,19 @@
       function createBoxAt(clientX, clientY) {
         const point = screenToWorld(clientX, clientY);
         const inst = currentInstance();
+        const firstLineClasses = inst.firstLineHash ? "textLine bigLine" : "textLine";
+        const firstLineContent = inst.firstLineHash && inst.hashAutoBold ? "<b><br></b>" : "<br>";
         const box = {
           id: makeId("box"),
           x: Math.round(point.x),
           y: Math.round(point.y),
           text: "",
-          html: '<div class="textLine"><br></div>',
+          html: `<div class="${firstLineClasses}">${firstLineContent}</div>`,
           w: 24,
           h: 24
         };
         inst.boxes.push(box);
-        selectedIds = new Set([box.id]);
+        selectedIds.clear();
         selectedLinkId = null;
         linkArmed = false;
         scheduleSave(true, true);
@@ -2212,12 +2327,21 @@
         }
       }
 
+      // First line # is intentionally a creation-time default only.
+      // Existing boxes must not be re-forced to # on edit/render, so users can un-# the first line normally.
+      function applyAutoFirstLineHash(box) {
+        return false;
+      }
+
+      function applyAutoFirstLineHashToRenderedBoxes() {
+        // No-op by design. The setting only affects newly created boxes.
+      }
+
       function toggleCurrentLineBig() {
         const box = getBoxElement(activeFormatBoxId);
         const data = getBoxData(activeFormatBoxId);
         if (!box || !data) return;
-        if (!activeLineEl || !box.contains(activeLineEl)) updateActiveLineFromSelection();
-        if (!activeLineEl) return;
+        if (!activeLineEl || !box.contains(activeLineEl)) return;
         const isNowBig = activeLineEl.classList.toggle("bigLine");
         if (currentInstance().hashAutoBold) {
           setWholeLineBold(activeLineEl, isNowBig);
@@ -2569,28 +2693,40 @@
       }
 
       formatToolbar.addEventListener("pointerdown", event => {
+        const button = event.target.closest?.("button[data-format]");
+        if (!button) return;
+        // Keep focus/selection in the editable box; otherwise execCommand can look
+        // like a background click because the button steals focus first.
         event.preventDefault();
         event.stopPropagation();
-      });
+        controlDownRecord = { type: "format", button, rect: button.getBoundingClientRect(), expanded: button.getBoundingClientRect() };
+        setHitHoveredControl(button);
+      }, true);
 
       formatToolbar.addEventListener("click", event => {
-        const button = event.target.closest("button[data-format]");
+        const button = event.target.closest("button[data-format]") || controlDownRecord?.button;
         if (!button || !activeFormatBoxId) return;
         event.preventDefault();
         event.stopPropagation();
+        controlDownRecord = null;
+        setHitHoveredControl(button);
         runFormatCommand(button.dataset.format);
-      });
+      }, true);
 
       lineButton.addEventListener("pointerdown", event => {
         event.preventDefault();
         event.stopPropagation();
-      });
+        controlDownRecord = { type: "line", button: lineButton, rect: lineButton.getBoundingClientRect(), expanded: lineButton.getBoundingClientRect() };
+        setHitHoveredControl(lineButton);
+      }, true);
 
       lineButton.addEventListener("click", event => {
         event.preventDefault();
         event.stopPropagation();
+        controlDownRecord = null;
+        setHitHoveredControl(lineButton);
         toggleCurrentLineBig();
-      });
+      }, true);
 
       document.addEventListener("pointermove", event => {
         const control = getEditingControlAtPoint(event.clientX, event.clientY);
@@ -2660,7 +2796,8 @@
         const sourceInstance = currentInstance();
         const instance = blankInstance(uniqueName(requestedName), {
           monospace: Boolean(sourceInstance.monospace),
-          hashAutoBold: Boolean(sourceInstance.hashAutoBold)
+          hashAutoBold: Boolean(sourceInstance.hashAutoBold),
+          firstLineHash: Boolean(sourceInstance.firstLineHash)
         });
         store.instances.push(instance);
         store.currentId = instance.id;
@@ -2691,6 +2828,13 @@
       autoBoldToggle.addEventListener("change", () => {
         const inst = currentInstance();
         inst.hashAutoBold = autoBoldToggle.checked;
+        saveNow(false);
+        syncInstanceControls();
+      });
+
+      firstLineHashToggle.addEventListener("change", () => {
+        const inst = currentInstance();
+        inst.firstLineHash = firstLineHashToggle.checked;
         saveNow(false);
         syncInstanceControls();
       });
