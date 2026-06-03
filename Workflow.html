@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v32_backspace_line_delete: Backspace at start of a line removes/merges that line correctly -->
+  <!-- controls_v37_top_drag_select_fix: make monospace outside-box selection clamp correctly above the box too -->
   <style>
     :root {
       --panel-width: 260px;
@@ -576,9 +576,13 @@
       let controlDownRecord = null;
       let suppressNextBoxBlurSave = false;
       let nppPointerHistory = null;
+      let nppCaretDragState = null;
       let nppRunDragState = null;
       let nppLineDragState = null;
       let nppSuppressDblClickUntil = 0;
+      const boxUndoStacks = new Map();
+      const BOX_UNDO_LIMIT = 120;
+      let restoringBoxUndo = false;
 
       function nppClickStage(event, fallbackSecondClick = false) {
         // Browser click counts keep increasing for very fast repeated clicks.
@@ -1221,6 +1225,131 @@
         selection.addRange(range);
       }
 
+      function nodePathFromBox(box, node) {
+        if (!box || !node) return null;
+        const path = [];
+        let current = node;
+        while (current && current !== box) {
+          const parent = current.parentNode;
+          if (!parent) return null;
+          const index = Array.prototype.indexOf.call(parent.childNodes, current);
+          if (index < 0) return null;
+          path.unshift(index);
+          current = parent;
+        }
+        return current === box ? path : null;
+      }
+
+      function nodeFromBoxPath(box, path) {
+        let current = box;
+        for (const index of path || []) {
+          if (!current || !current.childNodes || index < 0 || index >= current.childNodes.length) return null;
+          current = current.childNodes[index];
+        }
+        return current;
+      }
+
+      function selectionSnapshotForBox(box) {
+        const selection = document.getSelection();
+        if (!selection || !selection.rangeCount) return null;
+        const anchorNode = selection.anchorNode;
+        const focusNode = selection.focusNode;
+        if (!anchorNode || !focusNode || !box.contains(anchorNode) || !box.contains(focusNode)) return null;
+        const anchorPath = nodePathFromBox(box, anchorNode);
+        const focusPath = nodePathFromBox(box, focusNode);
+        if (!anchorPath || !focusPath) return null;
+        return {
+          anchorPath,
+          anchorOffset: selection.anchorOffset,
+          focusPath,
+          focusOffset: selection.focusOffset
+        };
+      }
+
+      function compareDomPoints(aNode, aOffset, bNode, bOffset) {
+        try {
+          const range = document.createRange();
+          range.setStart(aNode, aOffset);
+          range.setEnd(bNode, bOffset);
+          return range.collapsed ? 1 : -1;
+        } catch (e) {
+          return 0;
+        }
+      }
+
+      function restoreSelectionSnapshotForBox(box, snapshot) {
+        if (!snapshot) {
+          placeCaretAtEnd(box);
+          return;
+        }
+        const anchorNode = nodeFromBoxPath(box, snapshot.anchorPath);
+        const focusNode = nodeFromBoxPath(box, snapshot.focusPath);
+        if (!anchorNode || !focusNode) {
+          placeCaretAtEnd(box);
+          return;
+        }
+
+        const anchorOffset = Math.min(snapshot.anchorOffset, anchorNode.nodeType === Node.TEXT_NODE ? anchorNode.nodeValue.length : anchorNode.childNodes.length);
+        const focusOffset = Math.min(snapshot.focusOffset, focusNode.nodeType === Node.TEXT_NODE ? focusNode.nodeValue.length : focusNode.childNodes.length);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+
+        try {
+          const range = document.createRange();
+          if (compareDomPoints(anchorNode, anchorOffset, focusNode, focusOffset) <= 0) {
+            range.setStart(anchorNode, anchorOffset);
+            range.setEnd(focusNode, focusOffset);
+          } else {
+            range.setStart(focusNode, focusOffset);
+            range.setEnd(anchorNode, anchorOffset);
+          }
+          selection.addRange(range);
+        } catch (e) {
+          placeCaretAtEnd(box);
+        }
+      }
+
+      function pushBoxUndoSnapshot(box) {
+        if (restoringBoxUndo || !box?.dataset?.id) return;
+        const id = box.dataset.id;
+        const snapshot = {
+          html: box.innerHTML,
+          selection: selectionSnapshotForBox(box)
+        };
+        const stack = boxUndoStacks.get(id) || [];
+        const last = stack[stack.length - 1];
+        if (last && last.html === snapshot.html) return;
+        stack.push(snapshot);
+        while (stack.length > BOX_UNDO_LIMIT) stack.shift();
+        boxUndoStacks.set(id, stack);
+      }
+
+      function undoLastBoxEdit(box, data) {
+        if (!box?.dataset?.id || !data) return false;
+        const stack = boxUndoStacks.get(box.dataset.id);
+        if (!stack || !stack.length) return false;
+        const snapshot = stack.pop();
+        restoringBoxUndo = true;
+        try {
+          box.innerHTML = snapshot.html || '<div class="textLine"><br></div>';
+          normalizeBoxLines(box);
+          data.html = box.innerHTML;
+          data.text = box.innerText.replace(/\n$/, "");
+          autoSizeBox(box, data);
+          requestAnimationFrame(() => {
+            renderLines();
+            positionEditingControls();
+            updateToolbarState();
+          });
+          scheduleSave(true, true);
+          box.focus({ preventScroll: true });
+          restoreSelectionSnapshotForBox(box, snapshot.selection);
+        } finally {
+          restoringBoxUndo = false;
+        }
+        return true;
+      }
+
       function leadingIndentForLine(line) {
         if (!line) return "";
         const raw = line.textContent || "";
@@ -1406,30 +1535,55 @@
           });
 
           box.addEventListener("keydown", event => {
-            if (event.key === "Backspace" && handleBackspaceAtLineStart(box, data, event)) {
+            const lowerKey = event.key.toLowerCase();
+
+            if ((event.ctrlKey || event.metaKey) && !event.shiftKey && lowerKey === "z") {
+              if (undoLastBoxEdit(box, data)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+              }
+              return;
+            }
+
+            if (event.key === "Backspace") {
+              pushBoxUndoSnapshot(box);
+              if (handleBackspaceAtLineStart(box, data, event)) {
+                return;
+              }
               return;
             }
             if (event.key === "Enter") {
+              pushBoxUndoSnapshot(box);
               event.preventDefault();
               event.stopPropagation();
               insertUnhashedLineBreak(box, data);
               return;
             }
             if (event.key === "Tab") {
+              pushBoxUndoSnapshot(box);
               event.preventDefault();
               event.stopPropagation();
               document.execCommand("insertText", false, "\t");
               afterBoxEdited(box, data, true);
               return;
             }
-            if ((event.ctrlKey || event.metaKey) && ["b", "i", "u"].includes(event.key.toLowerCase())) {
+            if ((event.ctrlKey || event.metaKey) && ["b", "i", "u"].includes(lowerKey)) {
+              pushBoxUndoSnapshot(box);
               event.preventDefault();
-              const key = event.key.toLowerCase();
+              const key = lowerKey;
               if (key === "b") runFormatCommand("bold");
               if (key === "i") runFormatCommand("italic");
               if (key === "u") runFormatCommand("underline");
               return;
             }
+          });
+
+          box.addEventListener("beforeinput", event => {
+            if (restoringBoxUndo) return;
+            if (event.inputType === "historyUndo" || event.inputType === "historyRedo") return;
+            if (event.inputType === "insertFromPaste") return;
+            pushBoxUndoSnapshot(box);
           });
 
           box.addEventListener("keyup", () => {
@@ -1442,6 +1596,7 @@
 
           box.addEventListener("paste", event => {
             event.preventDefault();
+            pushBoxUndoSnapshot(box);
             const text = event.clipboardData?.getData("text/plain") || "";
             insertPlainTextWithLines(text);
             afterBoxEdited(box, data, true);
@@ -2056,6 +2211,7 @@
         const box = getBoxElement(activeFormatBoxId);
         const data = getBoxData(activeFormatBoxId);
         if (!box || !data) return;
+        pushBoxUndoSnapshot(box);
         box.focus();
         document.execCommand(commandForFormat(format), false, null);
         afterBoxEdited(box, data, true);
@@ -2256,19 +2412,15 @@
       }
 
       function placeNppCaretAtPoint(clientX, clientY, box) {
-        const line = nppVisibleLineAtPoint(clientX, clientY, box) || lineFromExtendedPoint(clientX, clientY, box);
+        const pos = nppCaretPositionForDragPoint(clientX, clientY, box);
         const selection = document.getSelection();
-        if (!selection) return false;
-
-        if (line && box.contains(line)) {
-          const offset = nppCaretOffsetFromPointOnLine(clientX, line, box);
-          const pos = domPositionFromLineOffset(line, offset);
+        if (selection && pos) {
           const range = document.createRange();
           range.setStart(pos.node, pos.offset);
           range.collapse(true);
           selection.removeAllRanges();
           selection.addRange(range);
-          activeLineEl = line;
+          activeLineEl = pos.line;
           activeFormatBoxId = box.dataset.id;
           selectedLinkId = null;
           box.focus({ preventScroll: true });
@@ -2295,6 +2447,66 @@
         return false;
       }
 
+      function nppLineForSelectionDragPoint(clientX, clientY, box) {
+        if (!box) return null;
+        const lines = Array.from(box.querySelectorAll(".textLine"));
+        if (!lines.length) return null;
+
+        // When a monospace selection is dragged outside the editor, Notepad++
+        // behaves as if the pointer is on the same horizontal side of the
+        // nearest line, instead of letting the browser snap to background text.
+        let bestLine = lines[0];
+        let bestDistance = Infinity;
+        for (const line of lines) {
+          const rect = line.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(clientY - centerY);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestLine = line;
+          }
+        }
+        return bestLine;
+      }
+
+      function nppCaretPositionForDragPoint(clientX, clientY, box) {
+        const line = nppLineForSelectionDragPoint(clientX, clientY, box);
+        if (!line || !box.contains(line)) return null;
+
+        const lineRect = line.getBoundingClientRect();
+        const text = line.textContent || "";
+        let offset;
+        if (clientX <= lineRect.left) {
+          offset = 0;
+        } else if (clientX >= lineRect.right) {
+          offset = text.length;
+        } else {
+          offset = nppCaretOffsetFromPointOnLine(clientX, line, box);
+        }
+        const pos = domPositionFromLineOffset(line, offset);
+        return { ...pos, line, offset };
+      }
+
+      function selectBetweenNppPositions(anchorPos, currentPos) {
+        if (!anchorPos || !currentPos) return false;
+        let startPos = anchorPos;
+        let endPos = currentPos;
+        if (compareDomPositions(currentPos, anchorPos) < 0) {
+          startPos = currentPos;
+          endPos = anchorPos;
+        }
+        const range = document.createRange();
+        range.setStart(startPos.node, startPos.offset);
+        range.setEnd(endPos.node, endPos.offset);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        activeLineEl = currentPos.line;
+        updateToolbarState();
+        positionEditingControls();
+        return true;
+      }
+
       function nppRunAtPoint(clientX, clientY, box) {
         const line = nppVisibleLineAtPoint(clientX, clientY, box) || lineFromExtendedPoint(clientX, clientY, box);
         if (!line || !box.contains(line)) return null;
@@ -2304,6 +2516,35 @@
 
         const index = nppCharIndexFromPointOnLine(clientX, line, box);
         if (index < 0) return null;
+
+        const kind = nppCharKind(text[index]);
+        let start = index;
+        let end = index + 1;
+        while (start > 0 && nppCharKind(text[start - 1]) === kind) start -= 1;
+        while (end < text.length && nppCharKind(text[end]) === kind) end += 1;
+
+        const startPos = domPositionFromLineOffset(line, start);
+        const endPos = domPositionFromLineOffset(line, end);
+        return { box, line, kind, start, end, startPos, endPos };
+      }
+
+      function nppRunForSelectionDragPoint(clientX, clientY, box) {
+        const line = nppLineForSelectionDragPoint(clientX, clientY, box);
+        if (!line || !box.contains(line)) return null;
+
+        const text = line.textContent || "";
+        if (!text.length) return null;
+
+        let index = nppCharIndexFromPointOnLine(clientX, line, box);
+        if (index < 0) {
+          const lineRect = line.getBoundingClientRect();
+          // During a Notepad++-style double-click drag, leaving the box above,
+          // below, left, or right should still resolve to the nearest sensible
+          // run on the nearest line, not stop updating the selection.
+          if (clientX <= lineRect.left) index = 0;
+          else if (clientX >= lineRect.right) index = text.length - 1;
+          else return null;
+        }
 
         const kind = nppCharKind(text[index]);
         let start = index;
@@ -2467,30 +2708,43 @@
         };
 
         if (stage === 3) {
+          nppCaretDragState = null;
           nppRunDragState = null;
           startNppLineDragSelection(event, box);
           return;
         }
 
         if (stage === 2) {
+          nppCaretDragState = null;
           startNppRunDragSelection(event, box);
           return;
         }
 
-        // 1st, 4th, 7th... click should be a normal caret click.
-        // For 4th/7th/etc., prevent the browser's native multi-click default
-        // from selecting the whitespace/run again, then place a collapsed caret.
+        // 1st, 4th, 7th... click should be a normal caret click, but a drag
+        // from that click should still select like a monospace editor. Using
+        // our own caret drag also lets selection continue outside the box by
+        // clamping horizontally to the left/right side of the nearest line.
         nppRunDragState = null;
         nppLineDragState = null;
-        if (clickCount > 1) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation?.();
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        const anchorPos = nppCaretPositionForDragPoint(event.clientX, event.clientY, box);
+        if (anchorPos) {
           placeNppCaretAtPoint(event.clientX, event.clientY, box);
-          nppSuppressDblClickUntil = performance.now() + 700;
-          return;
+          nppCaretDragState = {
+            pointerId: event.pointerId,
+            box,
+            anchorPos,
+            currentPos: anchorPos,
+            startX: event.clientX,
+            startY: event.clientY,
+            moved: false
+          };
+          try { box.setPointerCapture(event.pointerId); } catch (e) {}
         }
-        nppSuppressDblClickUntil = performance.now() + 260;
+        nppSuppressDblClickUntil = clickCount > 1 ? performance.now() + 700 : performance.now() + 260;
+        return;
       }, true);
 
       document.addEventListener("dblclick", event => {
@@ -2652,6 +2906,7 @@
         const data = getBoxData(activeFormatBoxId);
         if (!box || !data) return;
         if (!activeLineEl || !box.contains(activeLineEl)) return;
+        pushBoxUndoSnapshot(box);
         const isNowBig = activeLineEl.classList.toggle("bigLine");
         if (currentInstance().hashAutoBold) {
           setWholeLineBold(activeLineEl, isNowBig);
@@ -2683,10 +2938,28 @@
       }
 
       document.addEventListener("pointermove", event => {
+        if (nppCaretDragState && event.pointerId === nppCaretDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          const dx = event.clientX - nppCaretDragState.startX;
+          const dy = event.clientY - nppCaretDragState.startY;
+          if (!nppCaretDragState.moved && Math.hypot(dx, dy) > 2) {
+            nppCaretDragState.moved = true;
+          }
+          const currentPos = nppCaretPositionForDragPoint(event.clientX, event.clientY, nppCaretDragState.box);
+          if (currentPos) {
+            nppCaretDragState.currentPos = currentPos;
+            if (nppCaretDragState.moved) {
+              selectBetweenNppPositions(nppCaretDragState.anchorPos, currentPos);
+            }
+          }
+          return;
+        }
+
         if (nppLineDragState && event.pointerId === nppLineDragState.pointerId) {
           event.preventDefault();
           event.stopPropagation();
-          const currentLine = nppLineAtPoint(event.clientX, event.clientY, nppLineDragState.box);
+          const currentLine = nppLineForSelectionDragPoint(event.clientX, event.clientY, nppLineDragState.box);
           if (currentLine) {
             nppLineDragState.currentLine = currentLine;
             nppLineDragState.moved = true;
@@ -2698,7 +2971,7 @@
         if (nppRunDragState && event.pointerId === nppRunDragState.pointerId) {
           event.preventDefault();
           event.stopPropagation();
-          const currentRun = nppRunAtPoint(event.clientX, event.clientY, nppRunDragState.box);
+          const currentRun = nppRunForSelectionDragPoint(event.clientX, event.clientY, nppRunDragState.box);
           if (currentRun) {
             nppRunDragState.currentRun = currentRun;
             nppRunDragState.moved = true;
@@ -2768,16 +3041,41 @@
       });
 
       document.addEventListener("pointerup", event => {
+        if (nppCaretDragState && event.pointerId === nppCaretDragState.pointerId) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          const wasNppCaretSelectionDrag = nppCaretDragState.moved;
+          if (nppCaretDragState.moved && nppCaretDragState.currentPos) {
+            selectBetweenNppPositions(nppCaretDragState.anchorPos, nppCaretDragState.currentPos);
+          } else {
+            placeNppCaretAtPoint(event.clientX, event.clientY, nppCaretDragState.box);
+          }
+          try { nppCaretDragState.box.releasePointerCapture(nppCaretDragState.pointerId); } catch (e) {}
+          nppCaretDragState = null;
+          if (wasNppCaretSelectionDrag) {
+            // After a drag-selection, the next click should behave like a fresh
+            // first click. Without clearing this, repeated-click tracking can
+            // treat the next click on the selected text as a double-click/run
+            // selection, making it feel like the click did nothing.
+            nppPointerHistory = null;
+            nppSuppressDblClickUntil = performance.now() + 260;
+          }
+          return;
+        }
+
         if (nppLineDragState && event.pointerId === nppLineDragState.pointerId) {
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation?.();
+          const wasNppLineSelectionDrag = nppLineDragState.moved;
           if (nppLineDragState.currentLine) {
             selectBetweenNppLines(nppLineDragState.anchorLine, nppLineDragState.currentLine, nppLineDragState.box);
           }
           nppSuppressDblClickUntil = performance.now() + 700;
           try { nppLineDragState.box.releasePointerCapture(nppLineDragState.pointerId); } catch (e) {}
           nppLineDragState = null;
+          if (wasNppLineSelectionDrag) nppPointerHistory = null;
           return;
         }
 
@@ -2785,6 +3083,7 @@
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation?.();
+          const wasNppRunSelectionDrag = nppRunDragState.moved;
           if (nppRunDragState.currentRun) {
             selectBetweenNppRuns(nppRunDragState.anchorRun, nppRunDragState.currentRun);
           }
@@ -2793,6 +3092,7 @@
           }
           try { nppRunDragState.box.releasePointerCapture(nppRunDragState.pointerId); } catch (e) {}
           nppRunDragState = null;
+          if (wasNppRunSelectionDrag) nppPointerHistory = null;
           return;
         }
 
@@ -3082,11 +3382,25 @@
       }, true);
 
       document.addEventListener("click", event => {
-        const control = getEditingControlAtPoint(event.clientX, event.clientY) || controlDownRecord;
+        const downControl = controlDownRecord;
+        const upControl = getEditingControlAtPoint(event.clientX, event.clientY);
         controlDownRecord = null;
+
+        // Only activate an editing control if the click STARTED on that control
+        // or inside that control's invisible hit margin. This prevents a text
+        // selection drag that starts inside a box and releases over B/I/U/S/#
+        // from being treated as a formatting-button click.
+        if (!downControl) return;
+
+        // If the pointer was released over another expanded control area, use
+        // the closest control at release time. Otherwise, do not fire anything;
+        // this matches normal button behavior where dragging off cancels.
+        const control = upControl || null;
         if (!control) return;
+
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         setHitHoveredControl(control.button);
         executeEditingControl(control);
       }, true);
