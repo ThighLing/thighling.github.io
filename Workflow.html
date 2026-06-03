@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v31_monospace_autoindent_fix: caret lands after carried indent in monospace auto-indent -->
+  <!-- controls_v32_backspace_line_delete: Backspace at start of a line removes/merges that line correctly -->
   <style>
     :root {
       --panel-width: 260px;
@@ -1228,6 +1228,78 @@
         return (match ? match[0] : "").replaceAll("\u00a0", " ");
       }
 
+      function lineFromSelectionRange(box, range) {
+        let line = closestTextLine(range.startContainer, box);
+        if (line) return line;
+        if (range.startContainer === box) {
+          const at = range.startOffset;
+          const direct = box.childNodes[at] || box.childNodes[at - 1] || null;
+          if (direct) {
+            if (direct.nodeType === Node.ELEMENT_NODE && direct.matches?.(".textLine")) return direct;
+            line = closestTextLine(direct, box);
+            if (line) return line;
+          }
+        }
+        return null;
+      }
+
+      function placeCaretAtLineOffset(line, offset) {
+        if (!line) return;
+        const pos = domPositionFromLineOffset(line, offset);
+        const range = document.createRange();
+        range.setStart(pos.node, pos.offset);
+        range.collapse(true);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      function removePlaceholderBreak(line) {
+        if (!line) return;
+        if (!line.textContent && line.childNodes.length === 1 && line.firstChild?.nodeType === Node.ELEMENT_NODE && line.firstChild.tagName === "BR") {
+          line.innerHTML = "";
+        }
+      }
+
+      function handleBackspaceAtLineStart(box, data, event) {
+        const selection = document.getSelection();
+        if (!selection || !selection.rangeCount || !selection.isCollapsed) return false;
+        const range = selection.getRangeAt(0);
+        if (!box.contains(range.commonAncestorContainer)) return false;
+
+        const line = lineFromSelectionRange(box, range);
+        if (!line) return false;
+
+        const offsetInLine = lineOffsetFromDomPosition(line, range.startContainer, range.startOffset);
+        if (offsetInLine !== 0) return false;
+
+        const previousLine = line.previousElementSibling?.matches?.(".textLine") ? line.previousElementSibling : null;
+        if (!previousLine) return false;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const previousEndOffset = (previousLine.textContent || "").length;
+        removePlaceholderBreak(previousLine);
+
+        // Move the current line's contents up, then remove the current line.
+        // If the current line is empty, this simply deletes the blank line.
+        const children = Array.from(line.childNodes);
+        const currentHasOnlyPlaceholder = !line.textContent && children.length === 1 && children[0].nodeType === Node.ELEMENT_NODE && children[0].tagName === "BR";
+        if (!currentHasOnlyPlaceholder) {
+          for (const child of children) previousLine.appendChild(child);
+        }
+        line.remove();
+        ensureLineNotEmpty(previousLine);
+        box.focus({ preventScroll: true });
+        placeCaretAtLineOffset(previousLine, previousEndOffset);
+        activeLineEl = previousLine;
+        afterBoxEdited(box, data, true);
+        updateLineButtonState();
+        positionEditingControls();
+        return true;
+      }
+
       function insertUnhashedLineBreak(box, data) {
         const selection = document.getSelection();
         if (!selection || !selection.rangeCount) return false;
@@ -1334,6 +1406,9 @@
           });
 
           box.addEventListener("keydown", event => {
+            if (event.key === "Backspace" && handleBackspaceAtLineStart(box, data, event)) {
+              return;
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               event.stopPropagation();
