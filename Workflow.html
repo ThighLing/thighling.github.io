@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v19_format_buttons_fix: fixes B/I/U/S/# buttons so visible buttons are directly clickable again -->
+  <!-- controls_v29_click4_caret_fix: 4th monospace click uses a true caret click instead of run selection -->
   <style>
     :root {
       --panel-width: 260px;
@@ -579,6 +579,15 @@
       let nppRunDragState = null;
       let nppLineDragState = null;
       let nppSuppressDblClickUntil = 0;
+
+      function nppClickStage(event, fallbackSecondClick = false) {
+        // Browser click counts keep increasing for very fast repeated clicks.
+        // Notepad++/Scintilla-style selection should not treat the 4th click
+        // as another triple click. Cycle as: 1=caret, 2=run, 3=line,
+        // 4=caret again, 5=run, 6=line, ...
+        const detail = Math.max(1, Number(event.detail) || (fallbackSecondClick ? 2 : 1));
+        return ((detail - 1) % 3) + 1;
+      }
 
       document.execCommand?.("styleWithCSS", false, false);
       document.execCommand?.("defaultParagraphSeparator", false, "div");
@@ -2024,23 +2033,172 @@
         return null;
       }
 
+      function nppVisibleLineAtPoint(clientX, clientY, box) {
+        if (!box) return null;
+        const lines = Array.from(box.querySelectorAll(".textLine"));
+        if (!lines.length) return null;
+
+        const boxRect = box.getBoundingClientRect();
+        const verticalPadding = 8;
+        if (
+          clientY < boxRect.top - verticalPadding ||
+          clientY > boxRect.bottom + verticalPadding ||
+          clientX < boxRect.left - 8 ||
+          clientX > boxRect.right + 8
+        ) return null;
+
+        for (const line of lines) {
+          const rect = line.getBoundingClientRect();
+          if (clientY >= rect.top && clientY <= rect.bottom) return line;
+        }
+
+        let closest = null;
+        let closestDistance = Infinity;
+        for (const line of lines) {
+          const rect = line.getBoundingClientRect();
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.abs(clientY - centerY);
+          if (distance < closestDistance) {
+            closest = line;
+            closestDistance = distance;
+          }
+        }
+        return closest;
+      }
+
+      function nppMonospaceCharWidth(box) {
+        const style = getComputedStyle(box);
+        const probe = document.createElement("span");
+        probe.textContent = "0000000000";
+        probe.style.position = "absolute";
+        probe.style.left = "-10000px";
+        probe.style.top = "-10000px";
+        probe.style.visibility = "hidden";
+        probe.style.whiteSpace = "pre";
+        probe.style.fontFamily = style.fontFamily;
+        probe.style.fontSize = style.fontSize;
+        probe.style.fontWeight = style.fontWeight;
+        probe.style.fontStyle = style.fontStyle;
+        probe.style.letterSpacing = style.letterSpacing;
+        document.body.appendChild(probe);
+        const width = probe.getBoundingClientRect().width / 10;
+        probe.remove();
+        return Math.max(1, width * zoom);
+      }
+
+      function nppTabSize(box) {
+        const raw = getComputedStyle(box).tabSize || getComputedStyle(box).MozTabSize || "4";
+        const parsed = parseFloat(raw);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 4;
+      }
+
+      function nppAdvanceForChar(char, column, tabSize) {
+        if (char === "\t") {
+          const remainder = column % tabSize;
+          return remainder === 0 ? tabSize : tabSize - remainder;
+        }
+        return 1;
+      }
+
+      function nppTextVisualColumns(text, tabSize) {
+        let column = 0;
+        for (const char of text) column += nppAdvanceForChar(char, column, tabSize);
+        return column;
+      }
+
+      function nppCharIndexFromPointOnLine(clientX, line, box) {
+        const text = line.textContent || "";
+        if (!text.length) return -1;
+
+        const lineRect = line.getBoundingClientRect();
+        const charWidth = nppMonospaceCharWidth(box);
+        const tabSize = nppTabSize(box);
+        const visualX = (clientX - lineRect.left) / charWidth;
+        const totalColumns = nppTextVisualColumns(text, tabSize);
+
+        // In Notepad++ a double click in virtual space after the actual line text
+        // does not snap to the next/previous word. It only selects a run if the
+        // mouse is over a real character cell, including space/tab cells.
+        if (visualX < 0 || visualX >= totalColumns) return -1;
+
+        let column = 0;
+        for (let i = 0; i < text.length; i++) {
+          const nextColumn = column + nppAdvanceForChar(text[i], column, tabSize);
+          if (visualX < nextColumn) return i;
+          column = nextColumn;
+        }
+        return -1;
+      }
+
+      function nppCaretOffsetFromPointOnLine(clientX, line, box) {
+        const text = line.textContent || "";
+        const lineRect = line.getBoundingClientRect();
+        const charWidth = nppMonospaceCharWidth(box);
+        const tabSize = nppTabSize(box);
+        const visualX = (clientX - lineRect.left) / charWidth;
+
+        if (!text.length || visualX <= 0) return 0;
+
+        let column = 0;
+        for (let i = 0; i < text.length; i++) {
+          const nextColumn = column + nppAdvanceForChar(text[i], column, tabSize);
+          const midpoint = (column + nextColumn) / 2;
+          if (visualX < midpoint) return i;
+          if (visualX < nextColumn) return i + 1;
+          column = nextColumn;
+        }
+        return text.length;
+      }
+
+      function placeNppCaretAtPoint(clientX, clientY, box) {
+        const line = nppVisibleLineAtPoint(clientX, clientY, box) || lineFromExtendedPoint(clientX, clientY, box);
+        const selection = document.getSelection();
+        if (!selection) return false;
+
+        if (line && box.contains(line)) {
+          const offset = nppCaretOffsetFromPointOnLine(clientX, line, box);
+          const pos = domPositionFromLineOffset(line, offset);
+          const range = document.createRange();
+          range.setStart(pos.node, pos.offset);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          activeLineEl = line;
+          activeFormatBoxId = box.dataset.id;
+          selectedLinkId = null;
+          box.focus({ preventScroll: true });
+          showEditingControls(box.dataset.id);
+          updateToolbarState();
+          positionEditingControls();
+          return true;
+        }
+
+        const fallbackRange = rangeFromPoint(clientX, clientY);
+        if (fallbackRange && box.contains(fallbackRange.startContainer)) {
+          fallbackRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(fallbackRange);
+          activeFormatBoxId = box.dataset.id;
+          selectedLinkId = null;
+          box.focus({ preventScroll: true });
+          showEditingControls(box.dataset.id);
+          updateActiveLineFromSelection();
+          updateToolbarState();
+          positionEditingControls();
+          return true;
+        }
+        return false;
+      }
+
       function nppRunAtPoint(clientX, clientY, box) {
-        const range = rangeFromPoint(clientX, clientY);
-        const line = (range && closestLine(range.startContainer, box)) || lineFromExtendedPoint(clientX, clientY, box);
+        const line = nppVisibleLineAtPoint(clientX, clientY, box) || lineFromExtendedPoint(clientX, clientY, box);
         if (!line || !box.contains(line)) return null;
 
         const text = line.textContent || "";
         if (!text.length) return null;
 
-        let offset = 0;
-        if (range && line.contains(range.startContainer)) {
-          offset = lineOffsetFromDomPosition(line, range.startContainer, range.startOffset);
-        } else {
-          offset = text.length;
-        }
-        offset = clamp(offset, 0, text.length);
-        let index = offset >= text.length ? text.length - 1 : offset;
-        index = clamp(index, 0, text.length - 1);
+        const index = nppCharIndexFromPointOnLine(clientX, line, box);
+        if (index < 0) return null;
 
         const kind = nppCharKind(text[index]);
         let start = index;
@@ -2092,8 +2250,7 @@
       }
 
       function nppLineAtPoint(clientX, clientY, box) {
-        const range = rangeFromPoint(clientX, clientY);
-        const line = (range && closestLine(range.startContainer, box)) || lineFromExtendedPoint(clientX, clientY, box);
+        const line = nppVisibleLineAtPoint(clientX, clientY, box) || lineFromExtendedPoint(clientX, clientY, box);
         if (!line || !box.contains(line)) return null;
         return line;
       }
@@ -2117,8 +2274,11 @@
         }
 
         const selectionRange = document.createRange();
-        selectionRange.setStart(startLine, 0);
-        selectionRange.setEnd(endLine, endLine.childNodes.length);
+        // Selecting the line elements themselves gives Notepad++-style line
+        // selection more reliably in contenteditable than selecting only the
+        // child text nodes, especially when the line has formatting elements.
+        selectionRange.setStartBefore(startLine);
+        selectionRange.setEndAfter(endLine);
         const selection = document.getSelection();
         selection.removeAllRanges();
         selection.addRange(selectionRange);
@@ -2185,24 +2345,47 @@
           nppPointerHistory.boxId === box.dataset.id &&
           now - nppPointerHistory.time < 550 &&
           Math.hypot(event.clientX - nppPointerHistory.x, event.clientY - nppPointerHistory.y) < 8;
-        const isThirdClick = event.detail >= 3;
-        const isSecondClick = event.detail >= 2 || sameSpot;
+
+        // PointerEvent.detail is not reliable in every browser. Track the
+        // repeated-click count ourselves so the 4th click is truly the same
+        // as the 1st click, instead of accidentally behaving like another
+        // double-click whitespace/run selection.
+        const clickCount = sameSpot ? (Number(nppPointerHistory.clickCount) || 1) + 1 : 1;
+        const stage = ((clickCount - 1) % 3) + 1;
 
         nppPointerHistory = {
           boxId: box.dataset.id,
           time: now,
           x: event.clientX,
-          y: event.clientY
+          y: event.clientY,
+          clickCount
         };
 
-        if (isThirdClick) {
+        if (stage === 3) {
           nppRunDragState = null;
           startNppLineDragSelection(event, box);
           return;
         }
 
-        if (!isSecondClick) return;
-        startNppRunDragSelection(event, box);
+        if (stage === 2) {
+          startNppRunDragSelection(event, box);
+          return;
+        }
+
+        // 1st, 4th, 7th... click should be a normal caret click.
+        // For 4th/7th/etc., prevent the browser's native multi-click default
+        // from selecting the whitespace/run again, then place a collapsed caret.
+        nppRunDragState = null;
+        nppLineDragState = null;
+        if (clickCount > 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          placeNppCaretAtPoint(event.clientX, event.clientY, box);
+          nppSuppressDblClickUntil = performance.now() + 700;
+          return;
+        }
+        nppSuppressDblClickUntil = performance.now() + 260;
       }, true);
 
       document.addEventListener("dblclick", event => {
@@ -2212,7 +2395,10 @@
         const box = boxFromPointOrTarget(event);
         if (!box) return;
 
-        if (performance.now() < nppSuppressDblClickUntil) {
+        const stage = nppClickStage(event, false);
+        if (performance.now() < nppSuppressDblClickUntil || stage !== 2) {
+          // Prevent the browser dblclick fallback from changing the custom
+          // Notepad++ selection after a 3rd/4th click sequence.
           event.preventDefault();
           event.stopPropagation();
           event.stopImmediatePropagation?.();
@@ -2226,6 +2412,25 @@
         box.focus({ preventScroll: true });
         showEditingControls(box.dataset.id);
         selectNppRunAtPoint(event, box);
+      }, true);
+
+      document.addEventListener("click", event => {
+        if (!currentInstance().monospace) return;
+        if (event.button !== 0) return;
+        if (nppClickStage(event, false) !== 3) return;
+        if (isEditingControlTarget(event.target)) return;
+        const box = boxFromPointOrTarget(event);
+        if (!box) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        activeFormatBoxId = box.dataset.id;
+        selectedLinkId = null;
+        box.focus({ preventScroll: true });
+        showEditingControls(box.dataset.id);
+        const line = nppLineAtPoint(event.clientX, event.clientY, box);
+        if (line) selectBetweenNppLines(line, line, box);
       }, true);
 
       function closestLine(node, box) {
@@ -2570,9 +2775,21 @@
 
       viewport.addEventListener("mousemove", updateLineHoverFromPointer);
 
+      function isNonCanvasUiTarget(target) {
+        return Boolean(target?.closest?.(
+          "button, input, select, textarea, label, #sidebar, #instanceMenu, .instanceItem, #formatToolbar, #lineButton, #controlHitLayer, #marquee"
+        ));
+      }
+
       function isTrueBackgroundDoubleClick(event) {
         const target = event.target;
         if (!target) return false;
+
+        // The formatting controls use invisible coordinate hit margins. If a
+        // double-click lands inside one of those margins, the browser target can
+        // still be the viewport/background, so block box creation by coordinates too.
+        if (getEditingControlAtPoint(event.clientX, event.clientY)) return false;
+        if (isNonCanvasUiTarget(target)) return false;
 
         // If either click of the double-click happened in a box, do not create a
         // new box. This specifically fixes the first line/padding area of editable
@@ -2587,16 +2804,18 @@
         if (target.closest && (
           target.closest(".box") ||
           target.closest(".box *") ||
-          target.closest(".linkHit") ||
-          target.closest("#formatToolbar") ||
-          target.closest("#lineButton") ||
-          target.closest("#controlHitLayer") ||
-          target.closest("#marquee")
+          target.closest(".linkHit")
         )) return false;
         return target === viewport || target === world;
       }
 
       viewport.addEventListener("dblclick", event => {
+        if (getEditingControlAtPoint(event.clientX, event.clientY) || isNonCanvasUiTarget(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation?.();
+          return;
+        }
         if (pointInsideAnyBox(event.clientX, event.clientY, 10)) {
           event.preventDefault();
           event.stopPropagation();
@@ -2713,6 +2932,13 @@
         runFormatCommand(button.dataset.format);
       }, true);
 
+      formatToolbar.addEventListener("dblclick", event => {
+        if (!event.target.closest?.("button[data-format]")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+      }, true);
+
       lineButton.addEventListener("pointerdown", event => {
         event.preventDefault();
         event.stopPropagation();
@@ -2726,6 +2952,12 @@
         controlDownRecord = null;
         setHitHoveredControl(lineButton);
         toggleCurrentLineBig();
+      }, true);
+
+      lineButton.addEventListener("dblclick", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
       }, true);
 
       document.addEventListener("pointermove", event => {
