@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v30_monospace_autoindent: monospace Enter carries leading spaces/tabs to the new line -->
+  <!-- controls_v31_monospace_autoindent_fix: caret lands after carried indent in monospace auto-indent -->
   <style>
     :root {
       --panel-width: 260px;
@@ -1206,6 +1206,21 @@
         selection.addRange(range);
       }
 
+      function placeCaretAfterCarriedIndent(line, indentText) {
+        if (!line) return;
+        line.focus?.();
+        const range = document.createRange();
+        if (indentText && line.firstChild && line.firstChild.nodeType === Node.TEXT_NODE) {
+          range.setStart(line.firstChild, Math.min(indentText.length, line.firstChild.data.length));
+        } else {
+          range.setStart(line, 0);
+        }
+        range.collapse(true);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
       function leadingIndentForLine(line) {
         if (!line) return "";
         const raw = line.textContent || "";
@@ -1255,7 +1270,10 @@
         ensureLineNotEmpty(line);
         ensureLineNotEmpty(newLine);
         line.after(newLine);
-        placeCaretAtStart(newLine);
+        // Keep the auto-indented spaces/tabs, but put the caret AFTER them.
+        // The previous version inserted the indent and then placed the caret at
+        // the start of the line, so typing appeared to happen before the indent.
+        placeCaretAfterCarriedIndent(newLine, carriedIndent);
         activeLineEl = newLine;
         afterBoxEdited(box, data, true);
         updateLineButtonState();
