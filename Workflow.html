@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v38_monospace_click_accuracy: fix monospace click coordinate mapping for # big lines and tabs -->
+  <!-- controls_v40_arrow_priority_selection_persist: selected boxes keep arrow priority over text selection; failed link attempts keep selection -->
   <style>
     :root {
       --panel-width: 260px;
@@ -1655,6 +1655,8 @@
       }
 
       function onBoxPointerDown(event, data, box) {
+        if (event.button === 0 && handleArmedLinkBoxClick(data.id, event)) return;
+
         if (event.button === 0) {
           const hadSelectedLink = selectedLinkId !== null;
           selectedLinkId = null;
@@ -1662,17 +1664,6 @@
           if (hadSelectedLink) renderLines();
           updateToolbarState();
           showEditingControls(data.id);
-        }
-
-        if (event.button === 0 && linkArmed && selectedIds.size) {
-          event.preventDefault();
-          event.stopPropagation();
-          document.activeElement?.blur?.();
-          connectSelectionTo(data.id);
-          clearSelection();
-          syncSelectionClasses();
-          renderLines();
-          return;
         }
 
         if (event.button === 2) {
@@ -1713,20 +1704,60 @@
         try { element.setPointerCapture(event.pointerId); } catch (e) {}
       }
 
+      function handleArmedLinkBoxClick(clickedBoxId, event) {
+        // Any selected box group is an arrow source group.  This deliberately
+        // checks selectedIds instead of only linkArmed, because a failed click
+        // or focus change should not make the app forget the selected boxes.
+        if (event.button !== 0 || !selectedIds.size || !clickedBoxId) return false;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        document.activeElement?.blur?.();
+        clearBrowserTextSelection();
+        nppPointerHistory = null;
+
+        const added = event.shiftKey
+          ? connectClickedBoxToSelection(clickedBoxId)
+          : connectSelectionTo(clickedBoxId);
+
+        if (added) {
+          clearSelection();
+        } else {
+          // If the click could not create anything, for example because it was
+          // only a self-link or every requested arrow already existed, keep the
+          // selection armed instead of dropping the user's selected group.
+          linkArmed = selectedIds.size > 0;
+        }
+        syncSelectionClasses();
+        renderLines();
+        return true;
+      }
+
       function connectSelectionTo(targetId) {
         const sources = [...selectedIds].filter(id => id !== targetId);
-        for (const sourceId of sources) addLink(sourceId, targetId, false);
-        if (sources.length) scheduleSave(true, true);
+        let added = false;
+        for (const sourceId of sources) added = addLink(sourceId, targetId, false) || added;
+        if (added) scheduleSave(true, true);
+        return added;
+      }
+
+      function connectClickedBoxToSelection(sourceId) {
+        const targets = [...selectedIds].filter(id => id !== sourceId);
+        let added = false;
+        for (const targetId of targets) added = addLink(sourceId, targetId, false) || added;
+        if (added) scheduleSave(true, true);
+        return added;
       }
 
       function addLink(from, to, save = true) {
-        if (!from || !to || from === to) return;
+        if (!from || !to || from === to) return false;
         const inst = currentInstance();
         const exists = inst.links.some(link => link.from === from && link.to === to);
-        if (!exists) {
-          inst.links.push({ id: makeId("link"), from, to });
-          if (save) scheduleSave(true, true);
-        }
+        if (exists) return false;
+        inst.links.push({ id: makeId("link"), from, to });
+        if (save) scheduleSave(true, true);
+        return true;
       }
 
       function deleteSelectedBoxes() {
@@ -2684,11 +2715,25 @@
       }
 
       document.addEventListener("pointerdown", event => {
+        if (event.button !== 0) return;
+        if (!selectedIds.size) return;
+        if (isEditingControlTarget(event.target)) return;
+        const box = boxFromPointOrTarget(event);
+        if (!box) return;
+        handleArmedLinkBoxClick(box.dataset.id, event);
+      }, true);
+
+      document.addEventListener("pointerdown", event => {
         if (!currentInstance().monospace) return;
         if (event.button !== 0) return;
         if (isEditingControlTarget(event.target)) return;
         const box = boxFromPointOrTarget(event);
         if (!box) return;
+
+        // Armed arrow creation must win over monospace text-selection capture.
+        // Otherwise the capture listener prevents the box's normal pointerdown
+        // handler from drawing links.
+        if (handleArmedLinkBoxClick(box.dataset.id, event)) return;
 
         const now = performance.now();
         const sameSpot = nppPointerHistory &&
