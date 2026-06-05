@@ -592,7 +592,9 @@
       let nppSuppressDblClickUntil = 0;
       const boxUndoStacks = new Map();
       const BOX_UNDO_LIMIT = 120;
+      const INSTANCE_UNDO_LIMIT = 80;
       let restoringBoxUndo = false;
+      let restoringInstanceUndo = false;
 
       function nppClickStage(event, fallbackSecondClick = false) {
         // Browser click counts keep increasing for very fast repeated clicks.
@@ -630,7 +632,9 @@
           firstLineArrowBinding: Boolean(options.firstLineArrowBinding),
           view: { panX: 0, panY: 0, zoom: 1 },
           boxes: [],
-          links: []
+          links: [],
+          undoStack: [],
+          redoStack: []
         };
       }
 
@@ -640,7 +644,7 @@
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed.instances) && parsed.instances.length) {
-              for (const instance of parsed.instances) migrateInstance(instance);
+              for (const instance of parsed.instances) migrateInstance(instance, true);
               parsed.sort ||= "modified";
               return parsed;
             }
@@ -652,7 +656,7 @@
         return { currentId: first.id, instances: [first], sort: "modified" };
       }
 
-      function migrateInstance(instance) {
+      function migrateInstance(instance, resetHistory = false) {
         instance.boxes ||= [];
         instance.links ||= [];
         instance.view ||= { panX: 0, panY: 0, zoom: 1 };
@@ -660,10 +664,17 @@
         instance.hashAutoBold = Boolean(instance.hashAutoBold);
         instance.firstLineHash = Boolean(instance.firstLineHash);
         instance.firstLineArrowBinding = Boolean(instance.firstLineArrowBinding);
-        for (const box of instance.boxes) migrateBox(box);
+        if (resetHistory) {
+          instance.undoStack = [];
+          instance.redoStack = [];
+        } else {
+          instance.undoStack = Array.isArray(instance.undoStack) ? instance.undoStack.slice(-INSTANCE_UNDO_LIMIT) : [];
+          instance.redoStack = Array.isArray(instance.redoStack) ? instance.redoStack.slice(-INSTANCE_UNDO_LIMIT) : [];
+        }
+        for (const box of instance.boxes) migrateBox(box, resetHistory);
       }
 
-      function migrateBox(box) {
+      function migrateBox(box, resetHistory = false) {
         box.text ||= "";
         if (!box.html) {
           const escaped = textToLineHtml(box.text || "");
@@ -676,6 +687,13 @@
         }
         box.w ||= 24;
         box.h ||= 24;
+        if (resetHistory) {
+          box.undoStack = [];
+          box.redoStack = [];
+        } else {
+          box.undoStack = Array.isArray(box.undoStack) ? box.undoStack.slice(-BOX_UNDO_LIMIT) : [];
+          box.redoStack = Array.isArray(box.redoStack) ? box.redoStack.slice(-BOX_UNDO_LIMIT) : [];
+        }
       }
 
       function escapeHtml(text) {
@@ -716,9 +734,22 @@
         return found;
       }
 
+      function storageStoreSnapshot() {
+        const copy = clonePlain(store);
+        for (const instance of copy.instances || []) {
+          delete instance.undoStack;
+          delete instance.redoStack;
+          for (const box of instance.boxes || []) {
+            delete box.undoStack;
+            delete box.redoStack;
+          }
+        }
+        return copy;
+      }
+
       function saveNow(touchCurrent = false) {
         if (touchCurrent) currentInstance().modifiedAt = now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(storageStoreSnapshot()));
       }
 
       function scheduleSave(touchCurrent = true, rerenderList = true) {
@@ -726,6 +757,75 @@
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => saveNow(false), 120);
         if (rerenderList) renderInstanceList();
+      }
+
+      function clonePlain(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function instanceSnapshot(instance = currentInstance()) {
+        // Change history is only for boxes and arrows. View pan/zoom is not
+        // part of undo/redo snapshots, so undoing edits never jumps the camera.
+        return {
+          boxes: clonePlain(instance.boxes || []),
+          links: clonePlain(instance.links || [])
+        };
+      }
+
+      function snapshotsEqual(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+      }
+
+      function pushInstanceUndoSnapshot(snapshot = null) {
+        if (restoringInstanceUndo) return false;
+        const inst = currentInstance();
+        migrateInstance(inst);
+        const snap = snapshot || instanceSnapshot(inst);
+        const stack = inst.undoStack;
+        const last = stack[stack.length - 1];
+        if (last && snapshotsEqual(last, snap)) return false;
+        stack.push(snap);
+        while (stack.length > INSTANCE_UNDO_LIMIT) stack.shift();
+        inst.redoStack = [];
+        return true;
+      }
+
+      function restoreInstanceSnapshot(snapshot) {
+        if (!snapshot) return false;
+        const inst = currentInstance();
+        restoringInstanceUndo = true;
+        try {
+          inst.boxes = clonePlain(snapshot.boxes || []);
+          inst.links = clonePlain(snapshot.links || []);
+          migrateInstance(inst);
+          clearSelection();
+          hideEditingControls();
+          renderAll();
+          scheduleSave(true, true);
+        } finally {
+          restoringInstanceUndo = false;
+        }
+        return true;
+      }
+
+      function undoInstanceChange() {
+        const inst = currentInstance();
+        migrateInstance(inst);
+        if (!inst.undoStack.length) return false;
+        const previous = inst.undoStack.pop();
+        inst.redoStack.push(instanceSnapshot(inst));
+        while (inst.redoStack.length > INSTANCE_UNDO_LIMIT) inst.redoStack.shift();
+        return restoreInstanceSnapshot(previous);
+      }
+
+      function redoInstanceChange() {
+        const inst = currentInstance();
+        migrateInstance(inst);
+        if (!inst.redoStack.length) return false;
+        const next = inst.redoStack.pop();
+        inst.undoStack.push(instanceSnapshot(inst));
+        while (inst.undoStack.length > INSTANCE_UNDO_LIMIT) inst.undoStack.shift();
+        return restoreInstanceSnapshot(next);
       }
 
       function uniqueName(base, ignoreId = null) {
@@ -958,7 +1058,9 @@
           firstLineArrowBinding: Boolean(source.firstLineArrowBinding),
           view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
           boxes: [],
-          links: []
+          links: [],
+          undoStack: [],
+          redoStack: []
         };
         clone.boxes = (source.boxes || []).map(box => {
           const newId = makeId("box");
@@ -1323,29 +1425,43 @@
         }
       }
 
-      function pushBoxUndoSnapshot(box) {
-        if (restoringBoxUndo || !box?.dataset?.id) return;
-        const id = box.dataset.id;
-        const snapshot = {
-          html: box.innerHTML,
+      function makeBoxEditSnapshot(box) {
+        return {
+          html: box?.innerHTML || '<div class="textLine"><br></div>',
           selection: selectionSnapshotForBox(box)
         };
-        const stack = boxUndoStacks.get(id) || [];
-        const last = stack[stack.length - 1];
-        if (last && last.html === snapshot.html) return;
-        stack.push(snapshot);
-        while (stack.length > BOX_UNDO_LIMIT) stack.shift();
-        boxUndoStacks.set(id, stack);
       }
 
-      function undoLastBoxEdit(box, data) {
-        if (!box?.dataset?.id || !data) return false;
-        const stack = boxUndoStacks.get(box.dataset.id);
-        if (!stack || !stack.length) return false;
-        const snapshot = stack.pop();
+      function boxEditSnapshotEquals(a, b) {
+        return Boolean(a && b && a.html === b.html);
+      }
+
+      function getBoxHistoryData(box) {
+        if (!box?.dataset?.id) return null;
+        const data = getBoxData(box.dataset.id);
+        if (!data) return null;
+        data.undoStack = Array.isArray(data.undoStack) ? data.undoStack.slice(-BOX_UNDO_LIMIT) : [];
+        data.redoStack = Array.isArray(data.redoStack) ? data.redoStack.slice(-BOX_UNDO_LIMIT) : [];
+        return data;
+      }
+
+      function pushBoxUndoSnapshot(box) {
+        if (restoringBoxUndo || !box?.dataset?.id) return;
+        const data = getBoxHistoryData(box);
+        if (!data) return;
+        const snapshot = makeBoxEditSnapshot(box);
+        const stack = data.undoStack;
+        const last = stack[stack.length - 1];
+        if (boxEditSnapshotEquals(last, snapshot)) return;
+        stack.push(snapshot);
+        while (stack.length > BOX_UNDO_LIMIT) stack.shift();
+        data.redoStack = [];
+      }
+
+      function restoreBoxEditSnapshot(box, data, snapshot) {
         restoringBoxUndo = true;
         try {
-          box.innerHTML = snapshot.html || '<div class="textLine"><br></div>';
+          box.innerHTML = snapshot?.html || '<div class="textLine"><br></div>';
           normalizeBoxLines(box);
           data.html = box.innerHTML;
           data.text = box.innerText.replace(/\n$/, "");
@@ -1357,10 +1473,35 @@
           });
           scheduleSave(true, true);
           box.focus({ preventScroll: true });
-          restoreSelectionSnapshotForBox(box, snapshot.selection);
+          restoreSelectionSnapshotForBox(box, snapshot?.selection);
         } finally {
           restoringBoxUndo = false;
         }
+      }
+
+      function undoLastBoxEdit(box, data) {
+        if (!box?.dataset?.id || !data) return false;
+        data.undoStack = Array.isArray(data.undoStack) ? data.undoStack : [];
+        data.redoStack = Array.isArray(data.redoStack) ? data.redoStack : [];
+        if (!data.undoStack.length) return false;
+        const current = makeBoxEditSnapshot(box);
+        const previous = data.undoStack.pop();
+        data.redoStack.push(current);
+        while (data.redoStack.length > BOX_UNDO_LIMIT) data.redoStack.shift();
+        restoreBoxEditSnapshot(box, data, previous);
+        return true;
+      }
+
+      function redoLastBoxEdit(box, data) {
+        if (!box?.dataset?.id || !data) return false;
+        data.undoStack = Array.isArray(data.undoStack) ? data.undoStack : [];
+        data.redoStack = Array.isArray(data.redoStack) ? data.redoStack : [];
+        if (!data.redoStack.length) return false;
+        const current = makeBoxEditSnapshot(box);
+        const next = data.redoStack.pop();
+        data.undoStack.push(current);
+        while (data.undoStack.length > BOX_UNDO_LIMIT) data.undoStack.shift();
+        restoreBoxEditSnapshot(box, data, next);
         return true;
       }
 
@@ -1562,11 +1703,16 @@
             const lowerKey = event.key.toLowerCase();
 
             if ((event.ctrlKey || event.metaKey) && !event.shiftKey && lowerKey === "z") {
-              if (undoLastBoxEdit(box, data)) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-              }
+              event.preventDefault();
+              event.stopPropagation();
+              undoLastBoxEdit(box, data);
+              return;
+            }
+
+            if ((event.ctrlKey || event.metaKey) && (lowerKey === "y" || (event.shiftKey && lowerKey === "z"))) {
+              event.preventDefault();
+              event.stopPropagation();
+              redoLastBoxEdit(box, data);
               return;
             }
 
@@ -1739,7 +1885,8 @@
           originals,
           element,
           moved: false,
-          clickSelectInfo
+          clickSelectInfo,
+          historyPushed: false
         };
         try { element.setPointerCapture(event.pointerId); } catch (e) {}
       }
@@ -1776,17 +1923,25 @@
 
       function connectSelectionTo(targetId) {
         const sources = [...selectedIds].filter(id => id !== targetId);
+        const before = instanceSnapshot();
         let added = false;
         for (const sourceId of sources) added = addLink(sourceId, targetId, false) || added;
-        if (added) scheduleSave(true, true);
+        if (added) {
+          pushInstanceUndoSnapshot(before);
+          scheduleSave(true, true);
+        }
         return added;
       }
 
       function connectClickedBoxToSelection(sourceId) {
         const targets = [...selectedIds].filter(id => id !== sourceId);
+        const before = instanceSnapshot();
         let added = false;
         for (const targetId of targets) added = addLink(sourceId, targetId, false) || added;
-        if (added) scheduleSave(true, true);
+        if (added) {
+          pushInstanceUndoSnapshot(before);
+          scheduleSave(true, true);
+        }
         return added;
       }
 
@@ -1795,6 +1950,7 @@
         const inst = currentInstance();
         const exists = inst.links.some(link => link.from === from && link.to === to);
         if (exists) return false;
+        if (save) pushInstanceUndoSnapshot();
         inst.links.push({ id: makeId("link"), from, to });
         if (save) scheduleSave(true, true);
         return true;
@@ -1803,6 +1959,7 @@
       function deleteSelectedBoxes() {
         if (!selectedIds.size) return;
         const inst = currentInstance();
+        pushInstanceUndoSnapshot();
         inst.boxes = inst.boxes.filter(box => !selectedIds.has(box.id));
         inst.links = inst.links.filter(link => !selectedIds.has(link.from) && !selectedIds.has(link.to));
         clearSelection();
@@ -1815,6 +1972,7 @@
         if (!selectedLinkId) return;
         const inst = currentInstance();
         const before = inst.links.length;
+        if (inst.links.some(link => link.id === selectedLinkId)) pushInstanceUndoSnapshot();
         inst.links = inst.links.filter(link => link.id !== selectedLinkId);
         selectedLinkId = null;
         if (inst.links.length !== before) scheduleSave(true, true);
@@ -1834,7 +1992,7 @@
           const from = getBoxRect(link.from);
           const to = getBoxRect(link.to);
           if (!from || !to) continue;
-          const points = closestSidePoints(from, to, link.to);
+          const points = closestSidePoints(from, to, link.from, link.to);
 
           const visible = document.createElementNS("http://www.w3.org/2000/svg", "line");
           visible.classList.add("linkLine");
@@ -1962,9 +2120,9 @@
         return { x: distances[0].x, y: distances[0].y };
       }
 
-      function firstLineBindingRectForTarget(targetId, actualRect) {
+      function firstLineBindingRectForBox(boxId, actualRect) {
         if (!currentInstance().firstLineArrowBinding) return actualRect;
-        const element = getBoxElement(targetId);
+        const element = getBoxElement(boxId);
         const firstLine = element?.querySelector?.(".textLine");
         if (!element || !firstLine) return actualRect;
 
@@ -2043,15 +2201,43 @@
         return intendedEnd;
       }
 
-      function closestSidePoints(fromRect, toRect, targetId = null) {
-        const fromSides = sideCenters(fromRect);
-        const bindingRect = targetId ? firstLineBindingRectForTarget(targetId, toRect) : toRect;
-        let best = { start: fromSides[0], end: closestPointOnRectSurface(fromSides[0], toRect), distance: Infinity };
-        for (const start of fromSides) {
-          const intendedEnd = closestPointOnRectSurface(start, bindingRect);
-          const end = currentInstance().firstLineArrowBinding
-            ? keepDestinationOnActualTargetSurface(start, intendedEnd, toRect)
+      function keepSourceOnActualSourceSurface(intendedStart, end, actualRect) {
+        // The source can also be calculated from a pretend first-line-width
+        // rectangle. If that point is inside the real box, move it along the
+        // arrow path back to the real box surface so the line never starts from
+        // inside the box.
+        if (pointOnRectBoundary(intendedStart, actualRect)) return intendedStart;
+        const hit = firstSegmentIntersectionWithRect(end, intendedStart, actualRect);
+        if (hit) return hit;
+        return closestPointOnRectSurface(intendedStart, actualRect);
+      }
+
+      function closestSidePoints(fromRect, toRect, sourceId = null, targetId = null) {
+        const useFirstLineBinding = Boolean(currentInstance().firstLineArrowBinding);
+        const sourceBindingRect = useFirstLineBinding && sourceId ? firstLineBindingRectForBox(sourceId, fromRect) : fromRect;
+        const targetBindingRect = useFirstLineBinding && targetId ? firstLineBindingRectForBox(targetId, toRect) : toRect;
+        const fromSides = sideCenters(sourceBindingRect);
+
+        let firstStart = useFirstLineBinding
+          ? keepSourceOnActualSourceSurface(fromSides[0], closestPointOnRectSurface(fromSides[0], targetBindingRect), fromRect)
+          : fromSides[0];
+        let firstEnd = closestPointOnRectSurface(firstStart, toRect);
+        let best = { start: firstStart, end: firstEnd, distance: Infinity };
+
+        for (const intendedStart of fromSides) {
+          let intendedEnd = closestPointOnRectSurface(intendedStart, targetBindingRect);
+          let end = useFirstLineBinding
+            ? keepDestinationOnActualTargetSurface(intendedStart, intendedEnd, toRect)
             : intendedEnd;
+          const start = useFirstLineBinding
+            ? keepSourceOnActualSourceSurface(intendedStart, end, fromRect)
+            : intendedStart;
+
+          if (useFirstLineBinding) {
+            intendedEnd = closestPointOnRectSurface(start, targetBindingRect);
+            end = keepDestinationOnActualTargetSurface(start, intendedEnd, toRect);
+          }
+
           const dx = end.x - start.x;
           const dy = end.y - start.y;
           const distance = dx * dx + dy * dy;
@@ -2074,6 +2260,7 @@
           w: 24,
           h: 24
         };
+        pushInstanceUndoSnapshot();
         inst.boxes.push(box);
         selectedIds.clear();
         selectedLinkId = null;
@@ -3309,6 +3496,10 @@
           const distance = Math.hypot(screenDx, screenDy);
           if (!dragState.moved && distance > RIGHT_CLICK_SELECT_THRESHOLD) {
             dragState.moved = true;
+            if (!dragState.historyPushed) {
+              pushInstanceUndoSnapshot();
+              dragState.historyPushed = true;
+            }
             linkArmed = false;
             document.activeElement?.blur?.();
             dragState.element.classList.add("draggingBox");
@@ -3642,6 +3833,17 @@
           if (active?.isContentEditable) active.blur();
           return;
         }
+        const lowerKey = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && !typing && !event.shiftKey && lowerKey === "z") {
+          event.preventDefault();
+          undoInstanceChange();
+          return;
+        }
+        if ((event.ctrlKey || event.metaKey) && !typing && (lowerKey === "y" || (event.shiftKey && lowerKey === "z"))) {
+          event.preventDefault();
+          redoInstanceChange();
+          return;
+        }
         if ((event.key === "Delete" || event.key === "Backspace") && !typing) {
           if (selectedLinkId) {
             event.preventDefault();
@@ -3804,7 +4006,8 @@
         const instance = blankInstance(uniqueName(requestedName), {
           monospace: Boolean(sourceInstance.monospace),
           hashAutoBold: Boolean(sourceInstance.hashAutoBold),
-          firstLineHash: Boolean(sourceInstance.firstLineHash)
+          firstLineHash: Boolean(sourceInstance.firstLineHash),
+          firstLineArrowBinding: Boolean(sourceInstance.firstLineArrowBinding)
         });
         store.instances.push(instance);
         store.currentId = instance.id;
