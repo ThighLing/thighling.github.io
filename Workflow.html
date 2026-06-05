@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v53_rightclick_selected_clears_all: plain right-click selected box clears all selected boxes; unselected box selects only itself -->
+  <!-- controls_v56_hash_undo_redo_fix: stabilize # line state and active line after undo/redo -->
   <style>
     :root {
       --panel-width: 260px;
@@ -766,8 +766,16 @@
       function instanceSnapshot(instance = currentInstance()) {
         // Change history is only for boxes and arrows. View pan/zoom is not
         // part of undo/redo snapshots, so undoing edits never jumps the camera.
+        // Per-box text undo/redo stacks are intentionally session state and are
+        // not embedded inside structural snapshots. Keeping them out prevents
+        // stale text snapshots from restoring old # / bigLine states later.
+        const boxes = clonePlain(instance.boxes || []).map(box => {
+          delete box.undoStack;
+          delete box.redoStack;
+          return box;
+        });
         return {
-          boxes: clonePlain(instance.boxes || []),
+          boxes,
           links: clonePlain(instance.links || [])
         };
       }
@@ -795,7 +803,11 @@
         const inst = currentInstance();
         restoringInstanceUndo = true;
         try {
-          inst.boxes = clonePlain(snapshot.boxes || []);
+          inst.boxes = clonePlain(snapshot.boxes || []).map(box => {
+            delete box.undoStack;
+            delete box.redoStack;
+            return box;
+          });
           inst.links = clonePlain(snapshot.links || []);
           migrateInstance(inst);
           clearSelection();
@@ -1458,6 +1470,20 @@
         data.redoStack = [];
       }
 
+      function syncActiveLineAfterRestore(box) {
+        if (!box) return;
+        const selection = document.getSelection();
+        let line = null;
+        if (selection?.anchorNode && box.contains(selection.anchorNode)) {
+          line = closestTextLine(selection.anchorNode, box) || closestLine(selection.anchorNode, box);
+        }
+        if (!line || !box.contains(line)) {
+          line = box.querySelector(".textLine");
+        }
+        activeLineEl = line || null;
+        updateLineButtonState();
+      }
+
       function restoreBoxEditSnapshot(box, data, snapshot) {
         restoringBoxUndo = true;
         try {
@@ -1466,14 +1492,16 @@
           data.html = box.innerHTML;
           data.text = box.innerText.replace(/\n$/, "");
           autoSizeBox(box, data);
+          box.focus({ preventScroll: true });
+          restoreSelectionSnapshotForBox(box, snapshot?.selection);
+          syncActiveLineAfterRestore(box);
           requestAnimationFrame(() => {
+            syncActiveLineAfterRestore(box);
             renderLines();
             positionEditingControls();
             updateToolbarState();
           });
           scheduleSave(true, true);
-          box.focus({ preventScroll: true });
-          restoreSelectionSnapshotForBox(box, snapshot?.selection);
         } finally {
           restoringBoxUndo = false;
         }
@@ -3414,8 +3442,10 @@
           setWholeLineBold(activeLineEl, isNowBig);
         }
         normalizeBoxLines(box);
+        activeLineEl = box.contains(activeLineEl) ? activeLineEl : (box.querySelector(".textLine") || null);
         afterBoxEdited(box, data, true);
-        box.focus();
+        box.focus({ preventScroll: true });
+        syncActiveLineAfterRestore(box);
       }
 
       function insertPlainTextWithLines(text) {
