@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v45_tab_native_caret: monospace caret clicks use native browser positions inside the box, with fixed-grid tab logic only for whitespace runs/outside drags -->
+  <!-- controls_v53_rightclick_selected_clears_all: plain right-click selected box clears all selected boxes; unselected box selects only itself -->
   <style>
     :root {
       --panel-width: 260px;
@@ -87,7 +87,8 @@
 
     #monospaceControl,
     #autoBoldControl,
-    #firstLineHashControl {
+    #firstLineHashControl,
+    #firstLineArrowControl {
       display: flex;
       align-items: center;
       gap: 7px;
@@ -103,13 +104,15 @@
     }
 
     #autoBoldControl,
-    #firstLineHashControl {
+    #firstLineHashControl,
+    #firstLineArrowControl {
       margin-top: 0;
     }
 
     #sidePanel #monospaceToggle,
     #sidePanel #autoBoldToggle,
-    #sidePanel #firstLineHashToggle {
+    #sidePanel #firstLineHashToggle,
+    #sidePanel #firstLineArrowToggle {
       width: auto;
       margin: 0;
       accent-color: #fff;
@@ -493,6 +496,10 @@
         <input id="firstLineHashToggle" type="checkbox" />
         <span>First line #</span>
       </label>
+      <label id="firstLineArrowControl" title="When arrows point to a box, bind the destination as if the target box width were its first line width when possible">
+        <input id="firstLineArrowToggle" type="checkbox" />
+        <span>First line arrow binding</span>
+      </label>
     </aside>
 
     <main id="viewport">
@@ -533,6 +540,7 @@
       const MIN_ZOOM = 0.1;
       const MAX_ZOOM = 6;
       const DRAG_THRESHOLD = 4;
+      const RIGHT_CLICK_SELECT_THRESHOLD = 5;
 
       const viewport = document.getElementById("viewport");
       const world = document.getElementById("world");
@@ -551,6 +559,7 @@
       const monospaceToggle = document.getElementById("monospaceToggle");
       const autoBoldToggle = document.getElementById("autoBoldToggle");
       const firstLineHashToggle = document.getElementById("firstLineHashToggle");
+      const firstLineArrowToggle = document.getElementById("firstLineArrowToggle");
       const instanceMenu = document.getElementById("instanceMenu");
       const renameInstanceButton = document.getElementById("renameInstanceButton");
       const duplicateInstanceButton = document.getElementById("duplicateInstanceButton");
@@ -565,6 +574,7 @@
       let linkArmed = false;
       let saveTimer = null;
       let dragState = null;
+      let rightBoxClickState = null;
       let panState = null;
       let selectState = null;
       let instanceMenuTargetId = null;
@@ -617,6 +627,7 @@
           monospace: Boolean(options.monospace),
           hashAutoBold: Boolean(options.hashAutoBold),
           firstLineHash: Boolean(options.firstLineHash),
+          firstLineArrowBinding: Boolean(options.firstLineArrowBinding),
           view: { panX: 0, panY: 0, zoom: 1 },
           boxes: [],
           links: []
@@ -648,6 +659,7 @@
         instance.monospace = Boolean(instance.monospace);
         instance.hashAutoBold = Boolean(instance.hashAutoBold);
         instance.firstLineHash = Boolean(instance.firstLineHash);
+        instance.firstLineArrowBinding = Boolean(instance.firstLineArrowBinding);
         for (const box of instance.boxes) migrateBox(box);
       }
 
@@ -943,6 +955,7 @@
           monospace: Boolean(source.monospace),
           hashAutoBold: Boolean(source.hashAutoBold),
           firstLineHash: Boolean(source.firstLineHash),
+          firstLineArrowBinding: Boolean(source.firstLineArrowBinding),
           view: { ...(source.view || { panX: 0, panY: 0, zoom: 1 }) },
           boxes: [],
           links: []
@@ -1089,6 +1102,7 @@
         monospaceToggle.checked = mono;
         autoBoldToggle.checked = Boolean(currentInstance().hashAutoBold);
         firstLineHashToggle.checked = Boolean(currentInstance().firstLineHash);
+        firstLineArrowToggle.checked = Boolean(currentInstance().firstLineArrowBinding);
       }
 
       function renderAll() {
@@ -1678,23 +1692,40 @@
           event.preventDefault();
           event.stopPropagation();
           document.activeElement?.blur?.();
+          selectedLinkId = null;
 
           const additive = event.ctrlKey || event.metaKey;
+          const preSelectedIds = new Set(selectedIds);
+
           if (additive) {
-            if (selectedIds.has(data.id)) selectedIds.delete(data.id);
-            else selectedIds.add(data.id);
-          } else if (!selectedIds.has(data.id)) {
-            selectedIds = new Set([data.id]);
+            // Ctrl/right-click is selection-only. It should not drag the target
+            // box; the toggle happens on mouseup only if down/up stayed within
+            // the small click threshold.
+            rightBoxClickState = {
+              pointerId: event.pointerId,
+              boxId: data.id,
+              startX: event.clientX,
+              startY: event.clientY,
+              moved: false,
+              element: box
+            };
+            try { box.setPointerCapture(event.pointerId); } catch (e) {}
+            return;
           }
-          selectedLinkId = null;
-          linkArmed = selectedIds.size > 0;
-          syncSelectionClasses();
-          const idsToMove = selectedIds.has(data.id) ? [...selectedIds] : [data.id];
-          beginBoxDrag(event, box, idsToMove);
+
+          // Right-drag should never change selection at mouse-down time. If the
+          // clicked box is already part of a selected group, drag that group.
+          // Otherwise, drag only the clicked box while preserving the existing
+          // selection until a small click release intentionally selects it.
+          const idsToMove = preSelectedIds.has(data.id) ? [...preSelectedIds] : [data.id];
+          beginBoxDrag(event, box, idsToMove, {
+            boxId: data.id,
+            preSelectedIds
+          });
         }
       }
 
-      function beginBoxDrag(event, element, idsToMove) {
+      function beginBoxDrag(event, element, idsToMove, clickSelectInfo = null) {
         const originals = new Map();
         for (const id of idsToMove) {
           const item = getBoxData(id);
@@ -1707,7 +1738,8 @@
           ids: [...originals.keys()],
           originals,
           element,
-          moved: false
+          moved: false,
+          clickSelectInfo
         };
         try { element.setPointerCapture(event.pointerId); } catch (e) {}
       }
@@ -1802,7 +1834,7 @@
           const from = getBoxRect(link.from);
           const to = getBoxRect(link.to);
           if (!from || !to) continue;
-          const points = closestSidePoints(from, to);
+          const points = closestSidePoints(from, to, link.to);
 
           const visible = document.createElementNS("http://www.w3.org/2000/svg", "line");
           visible.classList.add("linkLine");
@@ -1880,17 +1912,150 @@
         ];
       }
 
-      function closestSidePoints(fromRect, toRect) {
-        const fromSides = sideCenters(fromRect);
-        const toSides = sideCenters(toRect);
-        let best = { start: fromSides[0], end: toSides[0], distance: Infinity };
-        for (const start of fromSides) {
-          for (const end of toSides) {
-            const dx = end.x - start.x;
-            const dy = end.y - start.y;
-            const distance = dx * dx + dy * dy;
-            if (distance < best.distance) best = { start, end, distance };
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function pointInsideRect(point, rect, epsilon = 0.001) {
+        return (
+          point.x > rect.x + epsilon &&
+          point.x < rect.x + rect.w - epsilon &&
+          point.y > rect.y + epsilon &&
+          point.y < rect.y + rect.h - epsilon
+        );
+      }
+
+      function pointOnRectBoundary(point, rect, epsilon = 0.01) {
+        const withinX = point.x >= rect.x - epsilon && point.x <= rect.x + rect.w + epsilon;
+        const withinY = point.y >= rect.y - epsilon && point.y <= rect.y + rect.h + epsilon;
+        const onLeft = Math.abs(point.x - rect.x) <= epsilon;
+        const onRight = Math.abs(point.x - (rect.x + rect.w)) <= epsilon;
+        const onTop = Math.abs(point.y - rect.y) <= epsilon;
+        const onBottom = Math.abs(point.y - (rect.y + rect.h)) <= epsilon;
+        return (withinY && (onLeft || onRight)) || (withinX && (onTop || onBottom));
+      }
+
+      function closestPointOnRectSurface(point, rect) {
+        const left = rect.x;
+        const right = rect.x + rect.w;
+        const top = rect.y;
+        const bottom = rect.y + rect.h;
+        const x = clamp(point.x, left, right);
+        const y = clamp(point.y, top, bottom);
+
+        // Outside the rectangle: the clamped point is already the closest
+        // boundary point, except when the point is aligned with the interior,
+        // where it lands on the matching side.
+        if (point.x < left) return { x: left, y };
+        if (point.x > right) return { x: right, y };
+        if (point.y < top) return { x, y: top };
+        if (point.y > bottom) return { x, y: bottom };
+
+        // Inside the rectangle: choose the nearest side.
+        const distances = [
+          { x: left, y: point.y, d: point.x - left },
+          { x: right, y: point.y, d: right - point.x },
+          { x: point.x, y: top, d: point.y - top },
+          { x: point.x, y: bottom, d: bottom - point.y }
+        ];
+        distances.sort((a, b) => a.d - b.d);
+        return { x: distances[0].x, y: distances[0].y };
+      }
+
+      function firstLineBindingRectForTarget(targetId, actualRect) {
+        if (!currentInstance().firstLineArrowBinding) return actualRect;
+        const element = getBoxElement(targetId);
+        const firstLine = element?.querySelector?.(".textLine");
+        if (!element || !firstLine) return actualRect;
+
+        const style = getComputedStyle(element);
+        const horizontalEdge =
+          (parseFloat(style.paddingLeft) || 0) +
+          (parseFloat(style.paddingRight) || 0) +
+          (parseFloat(style.borderLeftWidth) || 0) +
+          (parseFloat(style.borderRightWidth) || 0);
+
+        let contentWidth = 0;
+        const range = document.createRange();
+        try {
+          range.selectNodeContents(firstLine);
+          const rects = Array.from(range.getClientRects()).filter(rect => rect.width > 0 || rect.height > 0);
+          if (rects.length) {
+            const left = Math.min(...rects.map(rect => rect.left));
+            const right = Math.max(...rects.map(rect => rect.right));
+            contentWidth = Math.max(0, (right - left) / zoom);
           }
+        } catch (error) {
+          contentWidth = 0;
+        } finally {
+          range.detach?.();
+        }
+
+        // Empty first lines still get the normal minimum box width so arrows do
+        // not collapse onto a single vertical pixel.
+        const desiredWidth = Math.max(24, Math.ceil(contentWidth + horizontalEdge));
+        const width = Math.max(1, Math.min(actualRect.w, desiredWidth));
+        return { x: actualRect.x, y: actualRect.y, w: width, h: actualRect.h };
+      }
+
+      function firstSegmentIntersectionWithRect(start, end, rect) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const candidates = [];
+        const left = rect.x;
+        const right = rect.x + rect.w;
+        const top = rect.y;
+        const bottom = rect.y + rect.h;
+        const epsilon = 0.000001;
+
+        function addCandidate(t, x, y) {
+          if (t < epsilon || t > 1 + epsilon) return;
+          if (x < left - 0.01 || x > right + 0.01 || y < top - 0.01 || y > bottom + 0.01) return;
+          candidates.push({ t, x, y });
+        }
+
+        if (Math.abs(dx) > epsilon) {
+          let t = (left - start.x) / dx;
+          addCandidate(t, left, start.y + dy * t);
+          t = (right - start.x) / dx;
+          addCandidate(t, right, start.y + dy * t);
+        }
+        if (Math.abs(dy) > epsilon) {
+          let t = (top - start.y) / dy;
+          addCandidate(t, start.x + dx * t, top);
+          t = (bottom - start.y) / dy;
+          addCandidate(t, start.x + dx * t, bottom);
+        }
+
+        candidates.sort((a, b) => a.t - b.t);
+        return candidates.length ? { x: candidates[0].x, y: candidates[0].y } : null;
+      }
+
+      function keepDestinationOnActualTargetSurface(start, intendedEnd, actualRect) {
+        // In first-line binding mode, the pretend/narrow target surface can sit
+        // inside the real box. If the arrow would pass through the real box to
+        // reach that point, stop it on the real box surface instead.
+        if (pointOnRectBoundary(intendedEnd, actualRect)) return intendedEnd;
+        if (pointInsideRect(intendedEnd, actualRect) || !pointOnRectBoundary(intendedEnd, actualRect)) {
+          const hit = firstSegmentIntersectionWithRect(start, intendedEnd, actualRect);
+          if (hit) return hit;
+        }
+        return intendedEnd;
+      }
+
+      function closestSidePoints(fromRect, toRect, targetId = null) {
+        const fromSides = sideCenters(fromRect);
+        const bindingRect = targetId ? firstLineBindingRectForTarget(targetId, toRect) : toRect;
+        let best = { start: fromSides[0], end: closestPointOnRectSurface(fromSides[0], toRect), distance: Infinity };
+        for (const start of fromSides) {
+          const intendedEnd = closestPointOnRectSurface(start, bindingRect);
+          const end = currentInstance().firstLineArrowBinding
+            ? keepDestinationOnActualTargetSurface(start, intendedEnd, toRect)
+            : intendedEnd;
+          const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          const distance = dx * dx + dy * dy;
+          if (distance < best.distance) best = { start, end, distance };
         }
         return best;
       }
@@ -3130,11 +3295,19 @@
           return;
         }
 
+        if (rightBoxClickState && event.pointerId === rightBoxClickState.pointerId) {
+          const dx = event.clientX - rightBoxClickState.startX;
+          const dy = event.clientY - rightBoxClickState.startY;
+          if (!rightBoxClickState.moved && Math.hypot(dx, dy) > RIGHT_CLICK_SELECT_THRESHOLD) {
+            rightBoxClickState.moved = true;
+          }
+        }
+
         if (dragState && event.pointerId === dragState.pointerId) {
           const screenDx = event.clientX - dragState.startX;
           const screenDy = event.clientY - dragState.startY;
           const distance = Math.hypot(screenDx, screenDy);
-          if (!dragState.moved && distance > DRAG_THRESHOLD) {
+          if (!dragState.moved && distance > RIGHT_CLICK_SELECT_THRESHOLD) {
             dragState.moved = true;
             linkArmed = false;
             document.activeElement?.blur?.();
@@ -3246,10 +3419,27 @@
           return;
         }
 
+        if (rightBoxClickState && event.pointerId === rightBoxClickState.pointerId) {
+          const state = rightBoxClickState;
+          const distance = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
+          try { state.element.releasePointerCapture(state.pointerId); } catch (e) {}
+          rightBoxClickState = null;
+          if (!state.moved && distance <= RIGHT_CLICK_SELECT_THRESHOLD) {
+            if (selectedIds.has(state.boxId)) selectedIds.delete(state.boxId);
+            else selectedIds.add(state.boxId);
+            selectedLinkId = null;
+            linkArmed = selectedIds.size > 0;
+            syncSelectionClasses();
+          }
+          return;
+        }
+
         if (dragState && event.pointerId === dragState.pointerId) {
-          const wasMoved = dragState.moved;
-          const element = dragState.element;
-          try { element.releasePointerCapture(dragState.pointerId); } catch (e) {}
+          const state = dragState;
+          const wasMoved = state.moved;
+          const element = state.element;
+          const distance = Math.hypot(event.clientX - state.startX, event.clientY - state.startY);
+          try { element.releasePointerCapture(state.pointerId); } catch (e) {}
           element.classList.remove("draggingBox");
           document.body.classList.remove("noSelect");
           dragState = null;
@@ -3257,6 +3447,22 @@
             linkArmed = false;
             saveNow(true);
             renderInstanceList();
+          } else if (state.clickSelectInfo && distance <= RIGHT_CLICK_SELECT_THRESHOLD) {
+            const { boxId, preSelectedIds } = state.clickSelectInfo;
+            selectedLinkId = null;
+            // Plain right-click is NOT additive and is not Ctrl-like.
+            // On a short right-click release:
+            // - if the clicked box was already selected, it is deselected and
+            //   every other selected box is also cleared, leaving no selection;
+            // - if the clicked box was not selected, all previous selection is
+            //   cleared and only the clicked box becomes selected.
+            // Right-drag still moves without changing selection.
+            if (preSelectedIds.has(boxId)) {
+              selectedIds = new Set();
+            } else {
+              selectedIds = new Set([boxId]);
+            }
+            linkArmed = selectedIds.size > 0;
           } else {
             linkArmed = selectedIds.size > 0;
           }
@@ -3638,6 +3844,14 @@
         inst.firstLineHash = firstLineHashToggle.checked;
         saveNow(false);
         syncInstanceControls();
+      });
+
+      firstLineArrowToggle.addEventListener("change", () => {
+        const inst = currentInstance();
+        inst.firstLineArrowBinding = firstLineArrowToggle.checked;
+        saveNow(false);
+        syncInstanceControls();
+        renderLines();
       });
 
       window.addEventListener("beforeunload", () => saveNow(false));
