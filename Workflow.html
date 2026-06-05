@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v37_top_drag_select_fix: make monospace outside-box selection clamp correctly above the box too -->
+  <!-- controls_v38_monospace_click_accuracy: fix monospace click coordinate mapping for # big lines and tabs -->
   <style>
     :root {
       --panel-width: 260px;
@@ -2327,8 +2327,12 @@
         return closest;
       }
 
-      function nppMonospaceCharWidth(box) {
-        const style = getComputedStyle(box);
+      function nppMonospaceCharWidth(element) {
+        // Use the line's computed font, not the box font.  # lines are 32px,
+        // while normal lines are 16px; using the box font made clicks on #
+        // lines land too far to the right/left.  The returned width is in
+        // screen pixels, matching getBoundingClientRect() after world zoom.
+        const style = getComputedStyle(element);
         const probe = document.createElement("span");
         probe.textContent = "0000000000";
         probe.style.position = "absolute";
@@ -2372,7 +2376,7 @@
         if (!text.length) return -1;
 
         const lineRect = line.getBoundingClientRect();
-        const charWidth = nppMonospaceCharWidth(box);
+        const charWidth = nppMonospaceCharWidth(line);
         const tabSize = nppTabSize(box);
         const visualX = (clientX - lineRect.left) / charWidth;
         const totalColumns = nppTextVisualColumns(text, tabSize);
@@ -2394,7 +2398,7 @@
       function nppCaretOffsetFromPointOnLine(clientX, line, box) {
         const text = line.textContent || "";
         const lineRect = line.getBoundingClientRect();
-        const charWidth = nppMonospaceCharWidth(box);
+        const charWidth = nppMonospaceCharWidth(line);
         const tabSize = nppTabSize(box);
         const visualX = (clientX - lineRect.left) / charWidth;
 
