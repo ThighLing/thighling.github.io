@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bare Bones Boxes</title>
-  <!-- controls_v40_arrow_priority_selection_persist: selected boxes keep arrow priority over text selection; failed link attempts keep selection -->
+  <!-- controls_v45_tab_native_caret: monospace caret clicks use native browser positions inside the box, with fixed-grid tab logic only for whitespace runs/outside drags -->
   <style>
     :root {
       --panel-width: 260px;
@@ -1357,6 +1357,15 @@
         return (match ? match[0] : "").replaceAll("\u00a0", " ");
       }
 
+      function leadingIndentForLineBeforeOffset(line, offset) {
+        if (!line) return "";
+        const raw = line.textContent || "";
+        const fullLeadingMatch = raw.match(/^[\t \u00a0]*/);
+        const fullLeadingLength = fullLeadingMatch ? fullLeadingMatch[0].length : 0;
+        const copyLength = Math.max(0, Math.min(Number(offset) || 0, fullLeadingLength));
+        return raw.slice(0, copyLength).replaceAll("\u00a0", " ");
+      }
+
       function lineFromSelectionRange(box, range) {
         let line = closestTextLine(range.startContainer, box);
         if (line) return line;
@@ -1456,7 +1465,8 @@
         }
 
         const shouldCarryIndent = Boolean(currentInstance().monospace);
-        const carriedIndent = shouldCarryIndent ? leadingIndentForLine(line) : "";
+        const caretOffsetInLine = lineOffsetFromDomPosition(line, range.startContainer, range.startOffset);
+        const carriedIndent = shouldCarryIndent ? leadingIndentForLineBeforeOffset(line, caretOffsetInLine) : "";
         const afterFragment = afterRange.extractContents();
         const newLine = document.createElement("div");
         newLine.className = "textLine";
@@ -2359,27 +2369,26 @@
       }
 
       function nppMonospaceCharWidth(element) {
-        // Use the line's computed font, not the box font.  # lines are 32px,
-        // while normal lines are 16px; using the box font made clicks on #
-        // lines land too far to the right/left.  The returned width is in
-        // screen pixels, matching getBoundingClientRect() after world zoom.
-        const style = getComputedStyle(element);
+        // Measure the actual rendered width of a monospace space inside the
+        // same transformed line.  Measuring in document.body and multiplying by
+        // zoom was close, but it could drift after tabs because CSS transforms,
+        // # lines, and browser font fallback do not always match that estimate.
+        // Tabs are defined in space-width columns, so use spaces rather than 0s.
         const probe = document.createElement("span");
-        probe.textContent = "0000000000";
+        probe.textContent = "                "; // 16 spaces
         probe.style.position = "absolute";
-        probe.style.left = "-10000px";
-        probe.style.top = "-10000px";
+        probe.style.left = "0";
+        probe.style.top = "0";
         probe.style.visibility = "hidden";
+        probe.style.pointerEvents = "none";
         probe.style.whiteSpace = "pre";
-        probe.style.fontFamily = style.fontFamily;
-        probe.style.fontSize = style.fontSize;
-        probe.style.fontWeight = style.fontWeight;
-        probe.style.fontStyle = style.fontStyle;
-        probe.style.letterSpacing = style.letterSpacing;
-        document.body.appendChild(probe);
-        const width = probe.getBoundingClientRect().width / 10;
+        probe.style.padding = "0";
+        probe.style.margin = "0";
+        probe.style.border = "0";
+        element.appendChild(probe);
+        const width = probe.getBoundingClientRect().width / 16;
         probe.remove();
-        return Math.max(1, width * zoom);
+        return Math.max(1, width);
       }
 
       function nppTabSize(box) {
@@ -2402,19 +2411,103 @@
         return column;
       }
 
-      function nppCharIndexFromPointOnLine(clientX, line, box) {
+      function nppRangeRectForLineOffsets(line, startOffset, endOffset) {
+        try {
+          const start = domPositionFromLineOffset(line, startOffset);
+          const end = domPositionFromLineOffset(line, endOffset);
+          const range = document.createRange();
+          range.setStart(start.node, start.offset);
+          range.setEnd(end.node, end.offset);
+          const rects = Array.from(range.getClientRects()).filter(rect => rect.width > 0 || rect.height > 0);
+          if (rects.length) {
+            // Prefer a real-width rect. Whitespace and tabs usually have one,
+            // and this is the most accurate way to respect CSS tab stops.
+            return rects.find(rect => rect.width > 0) || rects[0];
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function nppCharacterRectsForLine(line) {
+        const text = line.textContent || "";
+        const rects = [];
+        for (let i = 0; i < text.length; i++) {
+          rects.push(nppRangeRectForLineOffsets(line, i, i + 1));
+        }
+        return rects;
+      }
+
+      function nppPointIsOnRectRow(clientY, rect) {
+        if (!rect) return false;
+        const tolerance = Math.max(3, rect.height * 0.25);
+        return clientY >= rect.top - tolerance && clientY <= rect.bottom + tolerance;
+      }
+
+      function nativeCaretPositionInsideBox(clientX, clientY, box) {
+        // For normal single-click caret placement, the browser already knows
+        // the exact rendered positions of text after tabs.  The earlier fixed
+        // grid conversion was useful for whitespace double-clicking, but it
+        // could drift several real characters on text that appears after tabs.
+        // So: use native caret hit-testing while the pointer is actually inside
+        // the box, and keep the custom grid only for whitespace/run selection
+        // and for outside-box drag clamping.
+        const boxRect = box.getBoundingClientRect();
+        if (
+          clientX < boxRect.left || clientX > boxRect.right ||
+          clientY < boxRect.top || clientY > boxRect.bottom
+        ) return null;
+
+        let node = null;
+        let offset = 0;
+        if (document.caretPositionFromPoint) {
+          const pos = document.caretPositionFromPoint(clientX, clientY);
+          if (pos) {
+            node = pos.offsetNode;
+            offset = pos.offset;
+          }
+        } else if (document.caretRangeFromPoint) {
+          const range = document.caretRangeFromPoint(clientX, clientY);
+          if (range) {
+            node = range.startContainer;
+            offset = range.startOffset;
+          }
+        }
+
+        if (!node || !box.contains(node)) return null;
+        const line = closestTextLine(node, box) || closestLine(node, box);
+        if (!line || !box.contains(line)) return null;
+        return { node, offset, line, lineOffset: lineOffsetFromDomPosition(line, node, offset) };
+      }
+
+      function nppVisualXForLinePoint(clientX, line) {
+        const lineRect = line.getBoundingClientRect();
+        const charWidth = nppMonospaceCharWidth(line);
+        return (clientX - lineRect.left) / charWidth;
+      }
+
+      function nppCharIndexFromPointOnLine(clientX, clientY, line, box) {
         const text = line.textContent || "";
         if (!text.length) return -1;
 
-        const lineRect = line.getBoundingClientRect();
-        const charWidth = nppMonospaceCharWidth(line);
-        const tabSize = nppTabSize(box);
-        const visualX = (clientX - lineRect.left) / charWidth;
-        const totalColumns = nppTextVisualColumns(text, tabSize);
+        // First, trust real rendered rectangles for visible non-whitespace
+        // characters. This fixes clicks on text that appears after tabs, where
+        // a pure column calculation can drift from the browser's actual glyphs.
+        // Spaces/tabs are still handled by the grid below so double-clicking a
+        // whitespace run selects the spaces/tabs instead of snapping to the word
+        // on the right.
+        const rects = nppCharacterRectsForLine(line);
+        for (let i = 0; i < text.length; i++) {
+          if (nppCharKind(text[i]) === "space") continue;
+          const rect = rects[i];
+          if (!rect || !nppPointIsOnRectRow(clientY, rect)) continue;
+          const pad = Math.max(1, Math.min(4, rect.width * 0.35));
+          if (clientX >= rect.left - pad && clientX <= rect.right + pad) return i;
+        }
 
-        // In Notepad++ a double click in virtual space after the actual line text
-        // does not snap to the next/previous word. It only selects a run if the
-        // mouse is over a real character cell, including space/tab cells.
+        // Use a Notepad++-style fixed tab-stop grid for whitespace itself.
+        const tabSize = nppTabSize(box);
+        const visualX = nppVisualXForLinePoint(clientX, line);
+        const totalColumns = nppTextVisualColumns(text, tabSize);
         if (visualX < 0 || visualX >= totalColumns) return -1;
 
         let column = 0;
@@ -2426,14 +2519,17 @@
         return -1;
       }
 
-      function nppCaretOffsetFromPointOnLine(clientX, line, box) {
+      function nppCaretOffsetFromPointOnLine(clientX, clientY, line, box) {
         const text = line.textContent || "";
-        const lineRect = line.getBoundingClientRect();
-        const charWidth = nppMonospaceCharWidth(line);
-        const tabSize = nppTabSize(box);
-        const visualX = (clientX - lineRect.left) / charWidth;
+        if (!text.length) return 0;
 
-        if (!text.length || visualX <= 0) return 0;
+        // Same fixed tab-stop grid as nppCharIndexFromPointOnLine(). This keeps
+        // caret placement around tabs aligned with the visual grid instead of the
+        // browser's native contenteditable whitespace snapping.
+        const tabSize = nppTabSize(box);
+        const visualX = nppVisualXForLinePoint(clientX, line);
+
+        if (visualX <= 0) return 0;
 
         let column = 0;
         for (let i = 0; i < text.length; i++) {
@@ -2505,6 +2601,13 @@
       }
 
       function nppCaretPositionForDragPoint(clientX, clientY, box) {
+        // If the pointer is inside the editable box, use native caret hit-testing.
+        // That is more accurate for real glyph positions after tabs. The custom
+        // line/column code below is only for dragging outside the box, where the
+        // browser would otherwise snap to the background or stop selecting.
+        const nativePos = nativeCaretPositionInsideBox(clientX, clientY, box);
+        if (nativePos) return nativePos;
+
         const line = nppLineForSelectionDragPoint(clientX, clientY, box);
         if (!line || !box.contains(line)) return null;
 
@@ -2516,7 +2619,7 @@
         } else if (clientX >= lineRect.right) {
           offset = text.length;
         } else {
-          offset = nppCaretOffsetFromPointOnLine(clientX, line, box);
+          offset = nppCaretOffsetFromPointOnLine(clientX, clientY, line, box);
         }
         const pos = domPositionFromLineOffset(line, offset);
         return { ...pos, line, offset };
@@ -2549,7 +2652,7 @@
         const text = line.textContent || "";
         if (!text.length) return null;
 
-        const index = nppCharIndexFromPointOnLine(clientX, line, box);
+        const index = nppCharIndexFromPointOnLine(clientX, clientY, line, box);
         if (index < 0) return null;
 
         const kind = nppCharKind(text[index]);
@@ -2570,7 +2673,7 @@
         const text = line.textContent || "";
         if (!text.length) return null;
 
-        let index = nppCharIndexFromPointOnLine(clientX, line, box);
+        let index = nppCharIndexFromPointOnLine(clientX, clientY, line, box);
         if (index < 0) {
           const lineRect = line.getBoundingClientRect();
           // During a Notepad++-style double-click drag, leaving the box above,
