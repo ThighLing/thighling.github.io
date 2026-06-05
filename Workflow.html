@@ -2240,11 +2240,29 @@
         return closestPointOnRectSurface(intendedStart, actualRect);
       }
 
+      function sourceSideCentersForArrow(fromRect, sourceId, useFirstLineBinding) {
+        const sides = sideCenters(fromRect);
+        if (!useFirstLineBinding || !sourceId) return sides;
+
+        const firstLineRect = firstLineBindingRectForBox(sourceId, fromRect);
+        const firstLineMiddleX = firstLineRect.x + firstLineRect.w / 2;
+
+        // First-line arrow binding only changes the horizontal middle used by
+        // the TOP and BOTTOM source points.  The left/right source points stay
+        // on the real box edges, so an arrow starting from the right side still
+        // starts from the real right side of the full box.
+        return sides.map(point => {
+          if (point.side === "top" || point.side === "bottom") {
+            return { ...point, x: firstLineMiddleX };
+          }
+          return point;
+        });
+      }
+
       function closestSidePoints(fromRect, toRect, sourceId = null, targetId = null) {
         const useFirstLineBinding = Boolean(currentInstance().firstLineArrowBinding);
-        const sourceBindingRect = useFirstLineBinding && sourceId ? firstLineBindingRectForBox(sourceId, fromRect) : fromRect;
         const targetBindingRect = useFirstLineBinding && targetId ? firstLineBindingRectForBox(targetId, toRect) : toRect;
-        const fromSides = sideCenters(sourceBindingRect);
+        const fromSides = sourceSideCentersForArrow(fromRect, sourceId, useFirstLineBinding);
 
         let firstStart = useFirstLineBinding
           ? keepSourceOnActualSourceSurface(fromSides[0], closestPointOnRectSurface(fromSides[0], targetBindingRect), fromRect)
