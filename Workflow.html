@@ -237,7 +237,7 @@
       z-index: 2;
       min-width: 24px;
       min-height: 24px;
-      max-width: 480px;
+      max-width: none;
       width: fit-content;
       height: fit-content;
       padding: 3px 5px;
@@ -246,9 +246,9 @@
       background: #fff;
       color: #000;
       font: 16px/18px system-ui, sans-serif;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      word-break: break-word;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
       outline: none;
       cursor: text;
       user-select: text;
@@ -262,9 +262,9 @@
     .box .textLine {
       min-height: 18px;
       line-height: 18px;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      word-break: break-word;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
     }
 
     .box .textLine.bigLine {
@@ -310,14 +310,14 @@
       visibility: hidden;
       min-width: 24px;
       min-height: 24px;
-      max-width: 480px;
+      max-width: none;
       width: fit-content;
       padding: 3px 5px;
       border: 1px solid transparent;
       font: 16px/18px system-ui, sans-serif;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      word-break: break-word;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
       tab-size: 4;
     }
 
@@ -1649,12 +1649,10 @@
 
       function autoSizeBox(element, data = null) {
         measureBox.innerHTML = element.innerHTML || '<div class="textLine"><br></div>';
-        const hasBigLine = Boolean(element.querySelector?.(".textLine.bigLine"));
-        measureBox.style.maxWidth = hasBigLine ? "none" : "480px";
+        measureBox.style.maxWidth = "none";
         const rect = measureBox.getBoundingClientRect();
         const measuredWidth = Math.max(rect.width, measureBox.scrollWidth);
-        const maxWidth = hasBigLine ? 4000 : 480;
-        const width = clamp(Math.ceil(measuredWidth + 2), 24, maxWidth);
+        const width = Math.max(24, Math.ceil(measuredWidth + 2));
         const height = Math.max(24, Math.ceil(rect.height + 2));
         element.style.width = `${width}px`;
         element.style.height = `${height}px`;
