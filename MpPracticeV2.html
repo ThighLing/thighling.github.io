@@ -187,6 +187,7 @@
 					if (index === -1) {
 						return;
 					}
+					e.stopImmediatePropagation();
 					var percentage = KeybindPercentages[index];
 					aR.setPercentage(percentage);
 				});
