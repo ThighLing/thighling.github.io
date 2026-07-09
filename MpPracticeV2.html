@@ -84,6 +84,10 @@
 				? (parseInt(localStorage.getItem('NoTroop'), 10) || 0)
 				: (localStorage.setItem('NoTroop', '0'), 0);
 				
+				var MoveAtkUi = localStorage.getItem('MoveAtkUi') !== null
+				? (parseInt(localStorage.getItem('MoveAtkUi'), 10) || 0)
+				: (localStorage.setItem('MoveAtkUi', '0'), 0);
+				
 				var NoBotAttacks = 0/*localStorage.getItem('NoBotAttacks') !== null
 				? (parseInt(localStorage.getItem('NoBotAttacks'), 10) || 0)
 				: (localStorage.setItem('NoBotAttacks', '0'), 0);*/
@@ -123,7 +127,6 @@
 				var ZeroDensOnly = localStorage.getItem('ZeroDensOnly') !== null
 				? (parseInt(localStorage.getItem('ZeroDensOnly'), 10) || 0)
 				: (localStorage.setItem('ZeroDensOnly', '0'), 0);
-				
 				var errorPrint = true
 				var paused = false
 				var KeybindCharList = [];
@@ -6497,17 +6500,19 @@
                     }
                     aN.uj();//bloat
                     aV.uj();//lb
-                    aR.uj();
+                    aR.uj();//slider
                     bC.uj();
                     aw.uj();
                     aW.uj();// top right bar
                     aS.uj();
                     aQ.uj();
                     bh.uj();
-                    aU.uj();
-                    aP.uj();//atking
+                    aU.uj();// top middle bar
+					
+					aP.uj();//atking
+					
                     aM.uj();
-                    aL.uj();
+                    aL.uj();//green attack button
                     aX.uj();
                     be.uj();
                     //av.uj();
@@ -11431,29 +11436,31 @@
                         var a7T;
                         var a7U = a0.a1.hw() ? x3 : 0;
                         var a7V = a0.a1.hw() ? Math.floor(0.15 * x3) : 0;
-                        for (aB = a55.length - 1; aB >= 0; aB--) {
-                            a7R = a7W(aB);
-                            a7S = a7X(aB);
-                            a7T = a55[aB].canvas.width;
-                            if (lQ >= a7S - a7V && lQ <= a7S + x3 + a7V) {
-                                if (lP >= a7R - a7U && lP <= a7R + x3 + a7U) {
-                                    if (!a55[aB].a7Q) {
-                                        a55[aB].a7H = true;
-                                        a55[aB].a7Q = true;
-                                        if (a55[aB].id === 0) {
-                                            b8.hD.pH(a55[aB].jJ);
-                                        } else {
-                                            b8.hD.pG(a55[aB].jJ);
-                                        }
-                                    }
-                                    return true;
-                                } else if (a55[aB].id === 0 && lP >= a7R + a7T - x3 - a7U && lP <= a7R + a7T + a7U) {
-                                    bV.a5X(3);
-                                    b8.hD.hK(aR.hH(), a55[aB].jJ);
-                                    return true;
-                                }
-                            }
-                        }
+					
+							for (aB = a55.length - 1; aB >= 0; aB--) {
+								a7R = a7W(aB);
+								a7S = a7X(aB);
+								a7T = a55[aB].canvas.width;
+								if (lQ >= a7S - a7V && lQ <= a7S + x3 + a7V) {
+									if (lP >= a7R - a7U && lP <= a7R + x3 + a7U) {
+										if (!a55[aB].a7Q) {
+											a55[aB].a7H = true;
+											a55[aB].a7Q = true;
+											if (a55[aB].id === 0) {
+												b8.hD.pH(a55[aB].jJ);
+											} else {
+												b8.hD.pG(a55[aB].jJ);
+											}
+										}
+										return true;
+									} else if (a55[aB].id === 0 && lP >= a7R + a7T - x3 - a7U && lP <= a7R + a7T + a7U) {
+										bV.a5X(3);
+										b8.hD.hK(aR.hH(), a55[aB].jJ);
+										return true;
+									}
+								}
+							}
+						
                         return false;
                     }
                     ;
@@ -11626,9 +11633,16 @@
                         bA.qb.textAlign(a58.yJ, 1);
                     }
                     function a7W(aB) {
+						if (MoveAtkUi){
+						return bc.gap;
+					}						
                         return aU.a7k() ? h.i - a55[aB].canvas.width - bc.gap : aU.eu;
                     }
                     function a7X(aB) {
+					if (MoveAtkUi){
+						return Math.floor(bc.gap + a80 + bc.gap +aB * (1.3 * x3) );
+					}
+					
                         return Math.floor(2 * bc.gap + (aU.a7k() ? aW.j + bc.gap : 0) + aU.j + aB * (1.3 * x3));
                     }
                     this.uj = function() {
@@ -22799,6 +22813,14 @@
 							NoTroop = value;                      // 0 or 1
 							localStorage.setItem('NoTroop', value.toString());
 						}));
+						aNX.qS(new s0({
+							value: MoveAtkUi
+						}, "MoveAtkUi", function(value) {
+							MoveAtkUi = value;                      // 0 or 1
+							localStorage.setItem('MoveAtkUi', value.toString());
+						}));
+						
+						
 						aNX.qS(new s0({
 							value: Density
 						}, "Density", function(value) {
