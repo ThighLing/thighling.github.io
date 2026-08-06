@@ -13838,9 +13838,10 @@
 						
                             return bA.ra.a4B(aAy[aB] / 100, 2);
 						} else if (aB === 7) {
+							 var setword1 = enableMPseed ? "M" : ""
 						     var setword = ((RandomFilter||randomSeed)&&!SetSeed) ? (RandomFilter ?"F": "R" )+((RandomSecond||RandomFilter)  ?"+": "" ): "S";
-							 var setword2 = (RandomSecond ===0 && SecondSeed ===0 && RandomFilter ===0 ?"": " | "+SecondSeed )
-                            return setword+ " " + aD.data.spawningSeed+setword2;
+							 var setword2 = (RandomSecond ===0 && (SecondSeed ===enableMPseed) && RandomFilter ===0 ?"": " | "+SecondSeed )
+                            return setword1+setword+ " " + aD.data.spawningSeed+setword2;
                         } else if (aB === 8) {
 							var setword2 = NoBotAttacks ? "NoAtk" : "";
                             return setword2 +" " +TotalPlayers+" "+ TotalPauses+" "+LastAttack;
@@ -22715,7 +22716,7 @@
 						if(!SetSeed){
 						aD.data.mapSeed = randomMapSeed ? (aD.data.mapSeed = Math.floor(16384 * Math.random())): aD.data.mapSeed
 						aD.data.spawningSeed = RandomFilter? (FilterSeed[Math.floor(FilterSeed.length*Math.random())]): (randomSeed? (aD.data.spawningSeed = Math.floor(16384 * Math.random())): aD.data.spawningSeed)
-                        SecondSeed = (RandomSecond ||RandomFilter) ? (Math.floor(511 * Math.random())) : SecondSeed
+                        SecondSeed = (RandomSecond ||(RandomFilter&&!enableMPseed)) ? (Math.floor(511 * Math.random())) : SecondSeed
 						}
 						aD.data.isReplay = 0;
                         aPn();
