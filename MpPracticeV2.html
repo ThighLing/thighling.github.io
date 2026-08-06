@@ -127,6 +127,10 @@
 				var ZeroDensOnly = localStorage.getItem('ZeroDensOnly') !== null
 				? (parseInt(localStorage.getItem('ZeroDensOnly'), 10) || 0)
 				: (localStorage.setItem('ZeroDensOnly', '0'), 0);
+				
+				var enableMPseed = localStorage.getItem('enableMPseed') !== null
+				? (parseInt(localStorage.getItem('enableMPseed'), 10) || 0)
+				: (localStorage.setItem('enableMPseed', '0'), 0);
 				var errorPrint = true
 				var paused = false
 				var KeybindCharList = [];
@@ -182,6 +186,9 @@
 
 				
 				document.addEventListener("keydown", function(e) {
+					if (aD.a09 === 0){
+						return;
+					}
 					if (KeybindType !== 1) {
 						return;
 					}
@@ -17121,7 +17128,6 @@
                     }
                     ;
                     function aGy(jQ, nR) {
-					var enableMPseed = 0
 					var aB = jQ+SecondSeed*enableMPseed
 				
 					var oncesave = 0;
@@ -25109,7 +25115,6 @@
 						
 						
 						
-						
 						aNX.qS(new s0({
 							value: RandomSecond
 						}, "Random 2nd", function(value) {
@@ -25117,6 +25122,12 @@
 							localStorage.setItem('RandomSecond', value.toString());
 						}));
 						
+						aNX.qS(new s0({
+							value: enableMPseed
+						}, "1v1 Bots", function(value) {
+							enableMPseed = value;                      // 0 or 1
+							localStorage.setItem('enableMPseed', value.toString());
+						}));
 						
 						
 						aNX.qS(new s0({
