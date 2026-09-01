@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Territorial Chat</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0d0f12;--side:#13161b;--panel:#181c22;--panel2:#20252d;
+  --line:#2a3039;--text:#f1f3f5;--muted:#8e98a8;--accent:#728cff;
+  --accent2:#8ca1ff;--danger:#ef6b6b;--ok:#4fd18b;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,"Segoe UI",sans-serif;overflow:hidden}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{height:100vh;height:100dvh;display:grid;grid-template-columns:280px minmax(0,1fr);overflow:hidden}
+.sidebar{background:var(--side);border-right:1px solid var(--line);min-height:0;display:flex;flex-direction:column}
+.brand{height:58px;padding:0 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);font-weight:700}
+.logo{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(135deg,var(--accent),#9a72ff)}
+.actions{padding:12px}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:9px 11px}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:white}
+.btn.primary:hover{background:var(--accent2)}
+.new{width:100%}
+.chat-list{padding:0 8px 12px;overflow:auto;min-height:0}
+.chat-row{display:grid;grid-template-columns:minmax(0,1fr) 30px;align-items:center;border-radius:9px;padding:3px;margin-bottom:2px}
+.chat-row.active{background:var(--panel2)}
+.chat-open{border:0;background:transparent;color:var(--text);text-align:left;padding:7px;min-width:0;border-radius:7px}
+.chat-open:hover{background:rgba(255,255,255,.04)}
+.chat-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.delete{border:0;background:transparent;color:var(--muted);width:28px;height:28px;border-radius:6px;opacity:.15}
+.chat-row:hover .delete{opacity:1}
+.delete:hover{background:rgba(239,107,107,.12);color:var(--danger)}
+.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding:10px}
+.prompt-card{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:10px}
+.label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+.prompt-name{font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prompt-actions{display:flex;gap:6px;margin-top:8px}
+.prompt-actions .btn{padding:7px 8px;font-size:12px;flex:1}
+.main{min-width:0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:58px;flex:0 0 58px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:#0f1115}
+.top-left,.top-right{display:flex;align-items:center;gap:8px;min-width:0}
+.heading{font-weight:650;max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:11px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 8px;white-space:nowrap}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#707988;margin-right:5px}
+.badge.online .dot{background:var(--ok)}
+.badge.offline .dot{background:var(--danger)}
+.model{max-width:260px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 8px}
+.icon{width:35px;height:35px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;display:grid;place-items:center}
+.icon:hover{background:var(--panel2)}
+.messages-wrap{min-height:0;flex:1 1 auto;overflow:hidden}
+.messages{height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:28px max(18px,calc((100% - 860px)/2)) 26px}
+.empty{height:100%;display:grid;place-items:center;text-align:center;color:var(--muted)}
+.empty strong{color:var(--text);font-size:20px;display:block;margin-bottom:5px}
+.message{margin-bottom:17px;display:flex}
+.message.user{justify-content:flex-end}
+.bubble{max-width:min(760px,88%);border:1px solid var(--line);border-radius:14px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.user .bubble{background:#222833;border-bottom-right-radius:4px}
+.assistant .bubble{background:#16191e;border-bottom-left-radius:4px}
+.error .bubble{border-color:rgba(239,107,107,.45);background:rgba(239,107,107,.07);color:#ffb2b2}
+.reasoning{max-width:min(760px,88%);margin:0 0 7px}
+.reasoning details{background:#111419;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.reasoning summary{padding:8px 10px;color:var(--muted);font-size:12px;cursor:pointer}
+.reasoning-text{padding:10px;border-top:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere;color:#aeb7c5;font:12px/1.5 Consolas,monospace}
+.message-meta{max-width:min(760px,88%);display:flex;align-items:center;gap:8px;margin:5px 2px 14px}
+.statline{font-size:11px;color:var(--muted);margin:0}
+.repeat-btn{appearance:none;width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:17px;line-height:1;padding:0;border-radius:7px;cursor:pointer;flex:0 0 auto}
+.repeat-btn:hover{background:var(--panel2);border-color:#4a5565;color:var(--text)}
+.repeat-btn:disabled{opacity:.45;cursor:not-allowed}
+.composer-area{flex:0 0 auto;min-height:0;position:relative;z-index:2;padding:10px max(18px,calc((100% - 890px)/2)) 18px;background:var(--bg)}
+.composer-box{border:1px solid var(--line);background:var(--panel);border-radius:15px;padding:8px;box-shadow:0 18px 60px rgba(0,0,0,.25)}
+textarea{display:block;width:100%;min-height:46px;max-height:230px;overflow-y:auto;resize:none;border:0;outline:0;background:transparent;color:var(--text);padding:8px 9px 5px;line-height:1.45}
+textarea::placeholder{color:#737d8c}
+.composer-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px}
+.hint{font-size:11px;color:var(--muted)}
+.send{height:34px;min-width:72px;border:0;border-radius:9px;background:var(--accent);color:white;font-weight:650}
+.send:hover{background:var(--accent2)}
+.send:disabled{opacity:.5;cursor:not-allowed}
+.drop{display:none;position:fixed;inset:12px;z-index:100;border:2px dashed var(--accent);background:rgba(13,15,18,.94);border-radius:18px;place-items:center;pointer-events:none}
+.drop.show{display:grid}
+.drop-inner{text-align:center}
+.drop-big{font-size:21px;font-weight:700;margin-bottom:5px}
+.drop-small{color:var(--muted)}
+.modal-bg{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);display:none;place-items:center;padding:18px}
+.modal-bg.show{display:grid}
+.modal{width:min(610px,100%);max-height:88vh;overflow:auto;background:var(--side);border:1px solid var(--line);border-radius:14px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--line);font-weight:700}
+.modal-body{padding:15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+.field label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.field input,.field select{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px}
+.check{display:flex;align-items:center;gap:8px;color:var(--text);font-size:13px}
+.check input{width:auto}
+.check small{color:var(--muted)}
+.modal-foot{padding:12px 15px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:7px}
+.toasts{position:fixed;z-index:120;right:18px;bottom:18px;display:grid;gap:8px}
+.toast{max-width:430px;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:9px 11px;box-shadow:0 12px 35px rgba(0,0,0,.3)}
+.toast.error{border-color:rgba(239,107,107,.5);color:#ffb5b5}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:white;border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:780px){.app{grid-template-columns:1fr}.sidebar{display:none}.model{max-width:150px}.heading{max-width:180px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">T</div><div>Territorial Chat</div></div>
+    <div class="actions"><button class="btn primary new" id="newBtn">＋ New chat</button></div>
+    <div class="chat-list" id="chatList"></div>
+    <div class="sidebar-bottom">
+      <div class="prompt-card">
+        <div class="label">System prompt</div>
+        <div class="prompt-name" id="promptName">No prompt</div>
+        <div class="prompt-actions">
+          <button class="btn" id="importBtn">Import .md</button>
+          <button class="btn" id="latestBtn">Use latest</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="top-left">
+        <div class="heading" id="heading">New Chat</div>
+        <div class="badge" id="serverBadge"><span class="dot"></span>checking</div>
+      </div>
+      <div class="top-right">
+        <select class="model" id="modelSelect"></select>
+        <button class="icon" id="refreshBtn" title="Refresh models">↻</button>
+        <button class="icon" id="settingsBtn" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <section class="messages-wrap">
+      <div class="messages" id="messages"></div>
+    </section>
+
+    <section class="composer-area">
+      <div class="composer-box">
+        <textarea id="composer" rows="1" placeholder="Message Danny"></textarea>
+        <div class="composer-bottom">
+          <div class="hint">Enter sends · Shift+Enter new line · Drop .md anywhere</div>
+          <button class="send" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<input id="fileInput" type="file" accept=".md,text/markdown,text/plain" hidden>
+
+<div class="drop" id="drop">
+  <div class="drop-inner">
+    <div class="drop-big">Use this .md as the system prompt</div>
+    <div class="drop-small">Saved to instructions · starts a new chat</div>
+  </div>
+</div>
+
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>Settings</span>
+      <button class="icon" id="closeSettings">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid">
+        <div class="field full">
+          <label>LM Studio server</label>
+          <input id="sUrl">
+        </div>
+        <div class="field full">
+          <label>API token</label>
+          <input id="sToken" type="password" placeholder="Only needed if LM Studio auth is enabled">
+        </div>
+        <div class="field">
+          <label>Temperature</label><input id="sTemp" type="number" min="0" max="1" step=".01">
+        </div>
+        <div class="field">
+          <label>Top P</label><input id="sTopP" type="number" min="0" max="1" step=".01">
+        </div>
+        <div class="field">
+          <label>Top K</label><input id="sTopK" type="number" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Min P</label><input id="sMinP" type="number" min="0" max="1" step=".01">
+        </div>
+        <div class="field">
+          <label>Repeat penalty</label><input id="sRepeat" type="number" min="0" step=".01">
+        </div>
+        <div class="field">
+          <label>Reasoning</label>
+          <select id="sReasoning">
+            <option value="on">On</option>
+            <option value="off">Off</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Max output tokens</label><input id="sMax" type="number" min="1">
+        </div>
+        <div class="field">
+          <label>Context length</label><input id="sContext" type="number" min="1024" step="1024">
+        </div>
+        <div class="field full">
+          <label class="check">
+            <input id="sAuto" type="checkbox">
+            <span>Auto Prompt<br><small>New or modified .md creates a new chat</small></span>
+          </label>
+        </div>
+        <div class="field full">
+          <label class="check">
+            <input id="sState" type="checkbox">
+            <span>State Cache<br><small>Precomputes reusable opening ranking state</small></span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="cancelSettings">Cancel</button>
+      <button class="btn primary" id="saveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+const state = {
+  chat:null, chats:[], config:{}, models:[], sending:false,
+  dragDepth:0, watchEvent:0, hasToken:false
+}
+const $ = id => document.getElementById(id)
+
+const ACTIVE_CHAT_KEY="territorial_active_chat_id"
+
+function savedActiveChatId(){
+  try{return sessionStorage.getItem(ACTIVE_CHAT_KEY)||""}catch{return ""}
+}
+
+function saveActiveChatId(id){
+  try{
+    if(id)sessionStorage.setItem(ACTIVE_CHAT_KEY,id)
+    else sessionStorage.removeItem(ACTIVE_CHAT_KEY)
+  }catch{}
+}
+
+async function loadChatLocal(id){
+  if(!id)return null
+  try{
+    const data=await request(`/api/chat?id=${encodeURIComponent(id)}`)
+    return data.chat||null
+  }catch{
+    return null
+  }
+}
+
+async function request(path, options={}){
+  const res = await fetch(path,{
+    headers:{"Content-Type":"application/json"},
+    ...options
+  })
+  let data={}
+  try{data=await res.json()}catch{}
+  if(!res.ok || data.ok===false){
+    const err=new Error(data.error || `HTTP ${res.status}`)
+    err.data=data
+    throw err
+  }
+  return data
+}
+
+function toast(text,type=""){
+  const el=document.createElement("div")
+  el.className=`toast ${type}`
+  el.textContent=text
+  $("toasts").appendChild(el)
+  setTimeout(()=>el.remove(),5000)
+}
+
+function formatTime(iso){
+  if(!iso)return ""
+  try{
+    return new Date(iso).toLocaleString([],{
+      month:"short",day:"numeric",hour:"numeric",minute:"2-digit"
+    })
+  }catch{return ""}
+}
+
+function renderChats(){
+  const root=$("chatList")
+  root.innerHTML=""
+  for(const chat of state.chats){
+    const row=document.createElement("div")
+    row.className="chat-row"+(state.chat?.id===chat.id?" active":"")
+    const open=document.createElement("button")
+    open.className="chat-open"
+    const title=document.createElement("div")
+    title.className="chat-title"
+    title.textContent=chat.title || "New Chat"
+    const meta=document.createElement("div")
+    meta.className="chat-meta"
+    meta.textContent=`${chat.prompt_file || "no prompt"} · ${formatTime(chat.modified_at)}`
+    open.append(title,meta)
+    open.onclick=()=>selectChat(chat.id)
+
+    const del=document.createElement("button")
+    del.className="delete"
+    del.textContent="×"
+    del.title="Delete chat"
+    del.onclick=async e=>{
+      e.stopPropagation()
+      if(!confirm("Delete this chat?"))return
+      try{
+        const data=await request("/api/delete-chat",{
+          method:"POST",body:JSON.stringify({id:chat.id})
+        })
+        state.chats=data.chats||[]
+
+        if(state.chat?.id===chat.id){
+          const fallback=state.chats[0]?.id||""
+          state.chat=fallback ? await loadChatLocal(fallback) : null
+          saveActiveChatId(state.chat?.id||"")
+        }
+
+        setPromptInfo(
+          state.chat?.prompt_file
+            ? {filename:state.chat.prompt_file}
+            : data.instruction
+        )
+        renderAll()
+      }catch(err){toast(err.message,"error")}
+    }
+    row.append(open,del)
+    root.appendChild(row)
+  }
+}
+
+function setPromptInfo(info){
+  $("promptName").textContent=info?.filename || "No .md prompt"
+  $("promptName").title=info?.filename || ""
+}
+
+function renderModels(){
+  const sel=$("modelSelect")
+  const current=state.chat?.model || state.config.model || ""
+  sel.innerHTML=""
+  if(!state.models.length){
+    const opt=document.createElement("option")
+    opt.value=""
+    opt.textContent="No models"
+    sel.appendChild(opt)
+    return
+  }
+  for(const m of state.models){
+    const opt=document.createElement("option")
+    opt.value=m.key
+    opt.textContent=(m.loaded?"● ":"○ ")+(m.display_name || m.key)
+    if(m.key===current)opt.selected=true
+    sel.appendChild(opt)
+  }
+}
+
+function statsText(stats){
+  if(!stats)return ""
+  const parts=[]
+  if(stats.tokens_per_second!=null)parts.push(`${Number(stats.tokens_per_second).toFixed(1)} tok/s`)
+  if(stats.input_tokens!=null)parts.push(`${stats.input_tokens} in`)
+  if(stats.total_output_tokens!=null)parts.push(`${stats.total_output_tokens} out`)
+  return parts.join(" · ")
+}
+
+function renderMessages(){
+  const root=$("messages")
+  root.innerHTML=""
+  const msgs=state.chat?.messages || []
+  if(!msgs.length){
+    const empty=document.createElement("div")
+    empty.className="empty"
+    const inside=document.createElement("div")
+    const strong=document.createElement("strong")
+    strong.textContent="New chat"
+    const sub=document.createElement("div")
+    sub.textContent=state.chat?.prompt_file
+      ? `System prompt: ${state.chat.prompt_file}`
+      : "Drop an .md file to begin"
+    inside.append(strong,sub)
+    empty.appendChild(inside)
+    root.appendChild(empty)
+    return
+  }
+
+  for(let index=0;index<msgs.length;index++){
+    const msg=msgs[index]
+
+    if(msg.role==="assistant" && msg.reasoning){
+      const reasoning=document.createElement("div")
+      reasoning.className="reasoning"
+      const details=document.createElement("details")
+      const summary=document.createElement("summary")
+      summary.textContent="Thinking Process"
+      const body=document.createElement("div")
+      body.className="reasoning-text"
+      body.textContent=msg.reasoning
+      details.append(summary,body)
+      reasoning.appendChild(details)
+      root.appendChild(reasoning)
+    }
+
+    const wrap=document.createElement("div")
+    wrap.className=`message ${msg.role}`
+    const bubble=document.createElement("div")
+    bubble.className="bubble"
+    bubble.textContent=msg.content || ""
+    wrap.appendChild(bubble)
+    root.appendChild(wrap)
+
+    if(msg.role==="assistant"){
+      const meta=document.createElement("div")
+      meta.className="message-meta"
+
+      const repeat=document.createElement("button")
+      repeat.className="repeat-btn"
+      repeat.type="button"
+      repeat.textContent="↻"
+      repeat.title="Regenerate from the user message above this reply"
+      repeat.setAttribute("aria-label","Repeat response")
+      repeat.disabled=state.sending
+      repeat.onclick=()=>repeatMessage(index,repeat)
+      meta.appendChild(repeat)
+
+      const st=statsText(msg.stats)
+      if(st){
+        const line=document.createElement("div")
+        line.className="statline"
+        line.textContent=st
+        meta.appendChild(line)
+      }
+
+      root.appendChild(meta)
+    }
+  }
+  requestAnimationFrame(()=>{root.scrollTop=root.scrollHeight})
+}
+
+function renderAll(){
+  renderChats()
+  renderModels()
+  renderMessages()
+  $("heading").textContent=state.chat?.title || "New Chat"
+}
+
+function autoSize(){
+  const box=$("composer")
+  box.style.height="auto"
+  box.style.height=Math.min(box.scrollHeight,230)+"px"
+}
+
+async function bootstrap(showWatchToast=false){
+  try{
+    const data=await request("/api/bootstrap")
+    state.chats=data.chats||[]
+    state.config=data.config||{}
+    state.models=data.models||[]
+    state.hasToken=!!data.has_api_token
+
+    // Each browser tab owns its own active chat selection.
+    // sessionStorage is isolated per tab, unlike the server's current_chat_id.
+    const wanted=savedActiveChatId()
+    let chosen=await loadChatLocal(wanted)
+
+    if(!chosen){
+      chosen=data.current_chat||null
+      if(!chosen && state.chats.length){
+        chosen=await loadChatLocal(state.chats[0].id)
+      }
+    }
+
+    state.chat=chosen
+    saveActiveChatId(state.chat?.id||"")
+
+    const oldEvent=state.watchEvent
+    state.watchEvent=data.watch_event||0
+    setPromptInfo(
+      state.chat?.prompt_file
+        ? {filename:state.chat.prompt_file}
+        : data.instruction
+    )
+    renderAll()
+
+    const badge=$("serverBadge")
+    if(data.lmstudio_error){
+      badge.className="badge offline"
+      badge.innerHTML='<span class="dot"></span>offline'
+      badge.title=data.lmstudio_error
+    }else{
+      badge.className="badge online"
+      badge.innerHTML='<span class="dot"></span>LM Studio'
+      badge.title="Connected to LM Studio"
+    }
+
+    if(showWatchToast && state.watchEvent>oldEvent && data.watch_message){
+      toast(data.watch_message)
+    }
+  }catch(err){
+    toast(err.message,"error")
+  }
+}
+
+async function selectChat(id){
+  try{
+    const chat=await loadChatLocal(id)
+    if(!chat)throw new Error("Chat not found")
+    state.chat=chat
+    saveActiveChatId(chat.id)
+    setPromptInfo({filename:chat.prompt_file||"No .md prompt"})
+    renderAll()
+    $("composer").focus()
+  }catch(err){toast(err.message,"error")}
+}
+
+async function newChat(){
+  try{
+    const data=await request("/api/new-chat",{
+      method:"POST",body:"{}"
+    })
+    state.chat=data.chat
+    state.chats=data.chats||[]
+    saveActiveChatId(state.chat?.id||"")
+    setPromptInfo(data.instruction)
+    renderAll()
+    $("composer").focus()
+  }catch(err){toast(err.message,"error")}
+}
+
+async function importPrompt(file){
+  if(!file)return
+  if(!file.name.toLowerCase().endsWith(".md")){
+    toast("Only .md files can be used as system prompts","error")
+    return
+  }
+  try{
+    const content=await file.text()
+    const data=await request("/api/import-prompt",{
+      method:"POST",
+      body:JSON.stringify({name:file.name,content})
+    })
+    state.chat=data.chat
+    state.chats=data.chats||[]
+    saveActiveChatId(state.chat?.id||"")
+    setPromptInfo(data.instruction)
+    renderAll()
+    toast(`${data.saved_as} is now the system prompt`)
+    $("composer").focus()
+  }catch(err){toast(err.message,"error")}
+}
+
+async function repeatMessage(assistantIndex,button){
+  if(state.sending || !state.chat)return
+
+  state.sending=true
+  $("sendBtn").disabled=true
+  document.querySelectorAll(".repeat-btn").forEach(b=>b.disabled=true)
+
+  const oldText=button?.textContent
+  if(button)button.textContent="…"
+
+  try{
+    const data=await request("/api/repeat",{
+      method:"POST",
+      body:JSON.stringify({
+        chat_id:state.chat.id,
+        assistant_index:assistantIndex
+      })
+    })
+    state.chat=data.chat
+    state.chats=data.chats||[]
+    saveActiveChatId(state.chat?.id||"")
+    renderAll()
+    if(data.repeat_fallback && data.repeat_note){
+      toast(data.repeat_note)
+    }
+  }catch(err){
+    if(err.data?.chat){
+      state.chat=err.data.chat
+      if(err.data.chats)state.chats=err.data.chats
+      saveActiveChatId(state.chat?.id||"")
+      renderAll()
+    }
+    toast(err.message,"error")
+  }finally{
+    state.sending=false
+    $("sendBtn").disabled=false
+    $("sendBtn").textContent="Send"
+    document.querySelectorAll(".repeat-btn").forEach(b=>b.disabled=false)
+    if(button && button.isConnected)button.textContent=oldText||"↻"
+    $("composer").focus()
+  }
+}
+
+async function sendMessage(){
+  if(state.sending || !state.chat)return
+  const box=$("composer")
+  const text=box.value
+  if(!text.trim())return
+
+  state.sending=true
+  $("sendBtn").disabled=true
+  $("sendBtn").innerHTML='<span class="spin"></span>'
+  box.value=""
+  autoSize()
+
+  // Optimistically show user message while waiting.
+  const temp={
+    role:"user",content:text,created_at:new Date().toISOString()
+  }
+  state.chat.messages=[...(state.chat.messages||[]),temp]
+  renderMessages()
+
+  try{
+    const data=await request("/api/send",{
+      method:"POST",
+      body:JSON.stringify({chat_id:state.chat.id,message:text})
+    })
+    state.chat=data.chat
+    state.chats=data.chats||[]
+    saveActiveChatId(state.chat?.id||"")
+    renderAll()
+  }catch(err){
+    if(err.data?.chat){
+      state.chat=err.data.chat
+      if(err.data.chats)state.chats=err.data.chats
+      saveActiveChatId(state.chat?.id||"")
+      renderAll()
+    }else{
+      toast(err.message,"error")
+    }
+  }finally{
+    state.sending=false
+    $("sendBtn").disabled=false
+    $("sendBtn").textContent="Send"
+    box.focus()
+  }
+}
+
+function openSettings(){
+  const c=state.config
+  $("sUrl").value=c.lmstudio_url||"http://localhost:1234"
+  $("sToken").value=""
+  $("sToken").placeholder=state.hasToken
+    ?"Token is saved · leave blank to keep it"
+    :"Only needed if LM Studio auth is enabled"
+  $("sTemp").value=c.temperature ?? 1
+  $("sTopP").value=c.top_p ?? .95
+  $("sTopK").value=c.top_k ?? 64
+  $("sMinP").value=c.min_p ?? 0
+  $("sRepeat").value=c.repeat_penalty ?? 1
+  $("sReasoning").value=c.reasoning || "on"
+  $("sMax").value=c.max_output_tokens ?? 4096
+  $("sContext").value=c.context_length ?? 16384
+  $("sAuto").checked=!!c.auto_prompt
+  $("sState").checked=c.derived_state!==false
+  $("settingsModal").classList.add("show")
+}
+
+function closeSettings(){
+  $("settingsModal").classList.remove("show")
+}
+
+async function saveSettings(){
+  const body={
+    lmstudio_url:$("sUrl").value.trim(),
+    model:$("modelSelect").value,
+    temperature:Number($("sTemp").value),
+    top_p:Number($("sTopP").value),
+    top_k:Number($("sTopK").value),
+    min_p:Number($("sMinP").value),
+    repeat_penalty:Number($("sRepeat").value),
+    reasoning:$("sReasoning").value,
+    max_output_tokens:Number($("sMax").value),
+    context_length:Number($("sContext").value),
+    auto_prompt:$("sAuto").checked,
+    derived_state:$("sState").checked
+  }
+  if($("sToken").value)body.api_token=$("sToken").value
+
+  try{
+    const data=await request("/api/settings",{
+      method:"POST",body:JSON.stringify(body)
+    })
+    state.config=data.config
+    state.hasToken=data.has_api_token
+    closeSettings()
+    toast("Settings saved")
+    await refreshModels(false)
+  }catch(err){toast(err.message,"error")}
+}
+
+async function refreshModels(show=true){
+  try{
+    const data=await request("/api/models")
+    state.models=data.models||[]
+    renderModels()
+    const badge=$("serverBadge")
+    badge.className="badge online"
+    badge.innerHTML='<span class="dot"></span>LM Studio'
+    if(show)toast("Models refreshed")
+  }catch(err){
+    const badge=$("serverBadge")
+    badge.className="badge offline"
+    badge.innerHTML='<span class="dot"></span>offline'
+    badge.title=err.message
+    if(show)toast(err.message,"error")
+  }
+}
+
+// Enter sends. Shift+Enter always inserts a newline.
+$("composer").addEventListener("keydown",e=>{
+  if(e.key==="Enter" && !e.shiftKey && !e.isComposing){
+    e.preventDefault()
+    sendMessage()
+  }
+})
+$("composer").addEventListener("input",autoSize)
+$("sendBtn").onclick=sendMessage
+$("newBtn").onclick=newChat
+$("latestBtn").onclick=newChat
+$("importBtn").onclick=()=>$("fileInput").click()
+$("fileInput").onchange=e=>{
+  const file=e.target.files?.[0]
+  if(file)importPrompt(file)
+  e.target.value=""
+}
+$("settingsBtn").onclick=openSettings
+$("closeSettings").onclick=closeSettings
+$("cancelSettings").onclick=closeSettings
+$("saveSettings").onclick=saveSettings
+$("refreshBtn").onclick=()=>refreshModels(true)
+$("modelSelect").onchange=async()=>{
+  try{
+    const data=await request("/api/settings",{
+      method:"POST",
+      body:JSON.stringify({model:$("modelSelect").value})
+    })
+    state.config=data.config
+    toast("Model selected")
+  }catch(err){toast(err.message,"error")}
+}
+$("settingsModal").addEventListener("click",e=>{
+  if(e.target===$("settingsModal"))closeSettings()
+})
+
+// Drag any .md anywhere on the page.
+window.addEventListener("dragenter",e=>{
+  e.preventDefault()
+  state.dragDepth++
+  $("drop").classList.add("show")
+})
+window.addEventListener("dragover",e=>e.preventDefault())
+window.addEventListener("dragleave",e=>{
+  e.preventDefault()
+  state.dragDepth=Math.max(0,state.dragDepth-1)
+  if(!state.dragDepth)$("drop").classList.remove("show")
+})
+window.addEventListener("drop",e=>{
+  e.preventDefault()
+  state.dragDepth=0
+  $("drop").classList.remove("show")
+  const files=[...(e.dataTransfer?.files||[])]
+  const md=files.find(f=>f.name.toLowerCase().endsWith(".md"))
+  if(md)importPrompt(md)
+  else toast("Drop an .md file","error")
+})
+
+// Poll only for shared filesystem/config events.
+// The active chat is per-tab and must never follow server current_chat_id.
+setInterval(async()=>{
+  try{
+    const data=await request("/api/status")
+    if(data.watch_event>state.watchEvent){
+      const oldEvent=state.watchEvent
+      await bootstrap(false)
+      if(data.watch_event>oldEvent && data.watch_message){
+        toast(data.watch_message)
+      }
+    }
+  }catch{}
+},1000)
+
+bootstrap()
+$("composer").focus()
+</script>
+</body>
+</html>
