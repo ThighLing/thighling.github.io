@@ -2599,8 +2599,13 @@
                         typeof terriRace.hasPendingLandGoal === "function" &&
                         terriRace.hasPendingLandGoal()) {
                         // The expansion occurred in the tick currently being
-                        // processed. Commit that same tick number, then finish
-                        // immediately without running another expansion.
+                        // processed. First close/write this exact tick into the
+                        // replay stream, then commit its tick number and freeze.
+                        //
+                        // Skipping bC.ec() made the live board show >=95% while
+                        // the serialized replay ended before this expansion and
+                        // reproduced the previous tick (for example 94.98%).
+                        bC.ec();
                         bi.ec();
                         terriRace.finishPendingLandGoal();
                         return;
@@ -33671,7 +33676,7 @@
                     var peaceOfferOpen = false;
                     var chatSerial = 0;
                     var menuButton = null;
-                    var protocolVersion = 6;
+                    var protocolVersion = 7;
                     var endpoint = "wss://race.terrihex.com/1v1";
                     var httpBase = "https://race.terrihex.com";
 
@@ -33777,12 +33782,22 @@
                         return value.substring(0, 48) || "Player";
                     }
 
+                    function accountName() {
+                        var value = "";
+                        try {
+                            // Territorial's own "Account Name" field.
+                            value = String(bm.eU.data[105].value || "").trim();
+                        } catch (e) {}
+                        return value.substring(0, 64);
+                    }
+
                     function enterQueue() {
                         safeSend({
                             type: "hello",
                             protocolVersion: protocolVersion,
                             gameVersion: m.o,
                             replayVersion: m.rVersion,
+                            accountName: accountName(),
                             displayName: displayName()
                         });
                         safeSend({type: "queue_join"});
