@@ -167,7 +167,9 @@
 				var DecayCap = 0.001
 				var PercClaim = LowestClaim;
 				var DecayPerc = 0.1;
-				var ShowScoreInsteadOfAccuracy = false;
+				var ShowScoreInsteadOfAccuracy = localStorage.getItem('ShowScoreInsteadOfAccuracy') !== null
+				? (parseInt(localStorage.getItem('ShowScoreInsteadOfAccuracy'), 10) === 1)
+				: (localStorage.setItem('ShowScoreInsteadOfAccuracy', '0'), false);
 				var DecayPercAcc = PercAcc;
 				var DecayPercClaim = PercClaim;
 				var ClaimedPixels = new Uint8Array(0);
@@ -217,24 +219,14 @@
 				}
 
 				function getAccuracyGraphValue(value) {
-					var percentage = Math.max(0, Math.min(value * 100, 100));
-					if (percentage > 99) {
-						percentage = (percentage - 99) * 0.9 + 99;
-					}
-					return -Math.log10(Math.max(1 - percentage / 100, 0.001));
+					var x = Math.max(0, Math.min(value, 1));
+					var power = 2.5 / (100 * Math.pow(x - 0.88, 2) + 1) + 8.7- 5*x
+					return Math.pow(x, power);
 				}
 
 				function getAccuracyGraphLabel(level) {
-					if (level <= 0) {
-						return "0%";
-					}
-					if (level === 1) {
-						return "90%";
-					}
-					if (level === 2) {
-						return "99%";
-					}
-					return "100%";
+					var labels = ["0%", "80%", "90%", "95%", "100%"];
+					return labels[level] !== undefined ? labels[level] : "";
 				}
 				
 				function expansionRate(land) {
@@ -23136,6 +23128,7 @@
                                 return;
                             }
                             ShowScoreInsteadOfAccuracy = showScore;
+                            localStorage.setItem('ShowScoreInsteadOfAccuracy', showScore ? '1' : '0');
                         }
                         ));
 						aNX.qS(new sG()); //line
@@ -30966,7 +30959,7 @@
                                 this.aYx = Math.max(axisWidth, fixedScoreWidth);
                             } else {
                                 var fixedAccuracyWidth = Math.max(
-                                    aQ.measureText("99.7%", bA.qb.sQ(0, this.aZ2)),
+                                    aQ.measureText("100%", bA.qb.sQ(0, this.aZ2)),
                                     aQ.measureText("100%", bA.qb.sQ(0, this.aZ2))
                                 );
                                 this.aYx = fixedAccuracyWidth;
@@ -31139,8 +31132,8 @@
                     ;
                     this.aZAccuracy = function(eu, ew) {
                         var g = bd.aYAccuracy;
-                        var maxLevel = Math.max(bd.max[3], 0.000001);
-                        var a2W = this.aYz / maxLevel;
+                        var maxLevel = 1;
+                        var a2W = this.aYz;
                         var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
                         uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
                         this.aZCycles(currentTick);
@@ -31156,7 +31149,7 @@
                         }
                         uk.stroke();
 
-                        var accuracyLevels = [0, 70, 90, 97, 99, 99.7, 100];
+                        var accuracyLevels = [0, 80, 90, 95, 100];
                         uk.lineWidth = 1;
                         uk.strokeStyle = "rgba(255,255,255,0.18)";
                         for (var levelIndex = 0; levelIndex < accuracyLevels.length; levelIndex++) {
