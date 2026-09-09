@@ -131,6 +131,14 @@
 				var enableMPseed = localStorage.getItem('enableMPseed') !== null
 				? (parseInt(localStorage.getItem('enableMPseed'), 10) || 0)
 				: (localStorage.setItem('enableMPseed', '0'), 0);
+				
+				var MathDens = localStorage.getItem('MathDens') !== null
+				? (parseFloat(localStorage.getItem('MathDens')) || 0)
+				: (localStorage.setItem('MathDens', '1.5'), 1.5);
+				
+				var MathPow = localStorage.getItem('MathPow') !== null
+				? (parseFloat(localStorage.getItem('MathPow')) || 0)
+				: (localStorage.setItem('MathPow', '10'), 10);
 				var errorPrint = true
 				var paused = false
 				var KeybindCharList = [];
@@ -151,6 +159,84 @@
 				var PercentATK = 0;
 				var PercentDiff = 0;
 				var LastSample = -1;
+				/*
+				var MathDens = 2
+				var MathPow = 10*/
+				var PercAcc = 0;
+				var LowestClaim = 0.025
+				var DecayCap = 0.001
+				var PercClaim = LowestClaim;
+				var DecayPerc = 0.1;
+				var ShowScoreInsteadOfAccuracy = false;
+				var DecayPercAcc = PercAcc;
+				var DecayPercClaim = PercClaim;
+				var ClaimedPixels = new Uint8Array(0);
+				var PreviouslyClaimedLand = 0;
+
+				function getAccuracyValue() {
+					return PercClaim === 0 ? 0 : PercAcc / PercClaim;
+				}
+
+				function getDecayAccuracyValue() {
+					return DecayPercClaim === 0 ? 0 : DecayPercAcc / (DecayPercClaim +(DecayCap*DecayPerc));
+				}
+
+				function getDecayScoreValue() {
+					if (DecayPercAcc <= 0) {
+						return 0;
+					}
+					var score = 1 / ((DecayPercClaim +(DecayCap*DecayPerc)) / DecayPercAcc - 1);
+					return isFinite(score) && score > 0 ? score : 0;
+				}
+
+				function getScoreGraphValue(value) {
+					if (value <= 0) {
+						return 0;
+					}
+					if (value < 1) {
+						return value;
+					}
+					return Math.log2(value) + 1;
+				}
+
+				function getScoreGraphLabel(level) {
+					if (level <= 0) {
+						return "0";
+					}
+					if (level === 1) {
+						return "1";
+					}
+					return Math.pow(2, level - 1).toString();
+				}
+
+				function formatScore(value) {
+					if (!isFinite(value) || value <= 0) {
+						return "0";
+					}
+					return Number(value.toPrecision(3)).toString();
+				}
+
+				function getAccuracyGraphValue(value) {
+					var percentage = Math.max(0, Math.min(value * 100, 100));
+					if (percentage > 99) {
+						percentage = (percentage - 99) * 0.9 + 99;
+					}
+					return -Math.log10(Math.max(1 - percentage / 100, 0.001));
+				}
+
+				function getAccuracyGraphLabel(level) {
+					if (level <= 0) {
+						return "0%";
+					}
+					if (level === 1) {
+						return "90%";
+					}
+					if (level === 2) {
+						return "99%";
+					}
+					return "100%";
+				}
+				
 				function expansionRate(land) {
 				  if (land < 1000)      return 4;
 				  else if (land < 10000)     return 3;
@@ -916,6 +1002,8 @@
                     fm = 0;
                     fn = new Uint32Array(fk);
                     fo = new Uint8Array(bS.ey * bS.ez);
+                    ClaimedPixels = new Uint8Array(bS.ey * bS.ez);
+                    PreviouslyClaimedLand = 0;
                 }
                 function fr(player) {
                     fe = player;
@@ -923,6 +1011,7 @@
                     fs();
                     ft();
                     for (var aB = ad.fu(fe) - 1; aB >= 0; aB--) {
+						
                         fd = aB;
                         fv();
                     }
@@ -999,6 +1088,11 @@
                 }
                 function g2() {
                     fj = 0;
+                    PreviouslyClaimedLand = 0;
+                    var mapSize = bS.ey * bS.ez;
+                    if (ClaimedPixels.length !== mapSize) {
+                        ClaimedPixels = new Uint8Array(mapSize);
+                    }
                     if (fi === aD.ek) {
                         gJ();
                     } else {
@@ -1028,6 +1122,9 @@
                             gM = bL.du(gL, 4);
                             if (fo[gM] === 0 && ac.ee(gL)) {
                                 fo[gM] = 1;
+                                if (ClaimedPixels[gM] === 1) {
+                                    PreviouslyClaimedLand++;
+                                }
                                 fl[fj++] = gL;
                             }
                         }
@@ -1078,6 +1175,14 @@
                     var gj = gk();
                     var gl = gg + 2 * gh + gj;
                     var gm = fh * fj;
+					if (fe === PlayerID) {
+						var fraction = (fj / ag.gb[PlayerID])
+						var AccGain = fraction/((( (ag.gp[fi]/ag.gb[fi]))/MathDens)**(MathPow*MathDens)+1)//fraction/(((gh/fj)/MathDens)**MathPow+1)
+						PercAcc += AccGain
+						PercClaim += fraction
+						DecayPercAcc += AccGain
+						DecayPercClaim += fraction
+					}
                     if (gm > gl) {
 					
 					let density = ag.gp[fi] / ag.gb[fi] 
@@ -1123,11 +1228,20 @@
                 function ge() {
                     var gr = fj * aD.g7;
                     ff -= gr;
+					var PlayerID = aD.eX;
+					if (fe === PlayerID) {
+						var fraction = (PreviouslyClaimedLand / ag.gb[PlayerID]);
+						PercAcc += fraction;
+						PercClaim += fraction;
+						DecayPercAcc += fraction;
+						DecayPercClaim += fraction;
+					}
                     bd.gD(fe, gr, 13);
                     return true;
                 }
                 function gd() {
                     for (var aB = fj - 1; aB >= 0; aB--) {
+                        ClaimedPixels[bL.du(fl[aB], 4)] = 1;
                         ag.gF[fe].push(fl[aB]);
                         ag.gT[fe].push(fl[aB]);
                         ac.gI(fl[aB], fe);
@@ -4319,6 +4433,75 @@
                         }
                     }
                     dd(this.e);
+                }
+                function normalizeDecimalText(raw) {
+                    raw = String(raw);
+                    var result = "";
+                    var hasDot = false;
+                    for (var i = 0; i < raw.length; i++) {
+                        var ch = raw.charAt(i);
+                        if (ch >= "0" && ch <= "9") {
+                            result += ch;
+                        } else if (ch === "." && !hasDot) {
+                            result += ch;
+                            hasDot = true;
+                        }
+                    }
+                    return result;
+                }
+                function commitDecimalInput(e, currentValue, min, max, onCommit, maxDecimals) {
+                    var raw = normalizeDecimalText(e.target.value);
+                    if (raw === "" || raw === ".") {
+                        e.target.value = currentValue;
+                        return;
+                    }
+                    if (maxDecimals !== undefined) {
+                        var dotIndex = raw.indexOf(".");
+                        if (dotIndex !== -1) {
+                            raw = raw.substring(0, dotIndex + 1 + maxDecimals);
+                        }
+                    }
+                    var value = parseFloat(raw);
+                    if (isNaN(value)) {
+                        e.target.value = currentValue;
+                        return;
+                    }
+                    value = bL.hv(value, min, max);
+                    e.target.value = value;
+                    onCommit(value);
+                }
+                function rPLabel(labelText, sU, type, sV, sW) {
+                    this.e = document.createElement(S[0]);
+                    this.input = new rP(sU, type, sV, 0);
+                    var label = document.createElement("span");
+                    var inputBox = document.createElement(S[0]);
+                    function styleInput(self) {
+                        bA.qb.ql(self.input.e, 5);
+                    }
+                    function dd(self) {
+                        self.e.style.display = S[16];
+                        self.e.style.alignItems = S[10];
+                        self.e.style.gap = "0.5em";
+                        self.e.style.marginBottom = "4px";
+                        self.e.style.width = S[1];
+                        label.textContent = labelText;
+                        label.style.fontSize = S[17];
+                        label.style.whiteSpace = S[80];
+                        inputBox.style.flex = "1";
+                        inputBox.appendChild(self.input.e);
+                        self.e.appendChild(label);
+                        self.e.appendChild(inputBox);
+                        if (sW) {
+                            self.input.e.addEventListener(S[52], function(e) {
+                                sW(e);
+                            });
+                        }
+                        styleInput(self);
+                    }
+                    this.resize = function() {
+                        styleInput(this);
+                    };
+                    dd(this);
                 }
                 function sZ(qV, data) {
                     var en = data.sa.length;
@@ -22732,6 +22915,7 @@
                         aPo(qW);
                         aPL(qW);
                         aPp(qW);
+						Score(qW);
                         qW.push(aPq());
                         qW.push(aPr());
                         qW.push(aPs());
@@ -22854,15 +23038,16 @@
 							localStorage.setItem('MpMode', value.toString());
 						}));
 						
-						aNX.qS(new rP({
+						var delayBox = new rPLabel("Delay:", {
 							e8: -1,
                            value: Delay
-                        },1,0,function(e) {
+                        },1,0,0);
+                        delayBox.input.e.addEventListener(S[23], function(e) {
                             var eDelay = bL.hv(Math.floor(e.target.value), 0, 1000); 
 							e.target.value = Delay = eDelay;
 							localStorage.setItem('Delay', Delay.toString());
-                        }
-                        ));
+                        });
+                        aNX.qS(delayBox);
 						aNX.qS(new sG()); //line
 						
 						aNX.qS(new s0({
@@ -22908,23 +23093,17 @@
 							localStorage.setItem('StartPercentage', value.toString());
 						}));
 						
-						aNX.qS(new rP({
+						var startPercentageBox = new rP({
 							e8: -1,
                            value: SetPercentage
-                        },0,0,function(e) {
-							var raw = e.target.value;
-							if (raw === "" || raw === "." || raw.endsWith(".")) {
-								return;
-							}
-							var eSetPercentage = parseFloat(raw);
-							if (isNaN(eSetPercentage)) {
-								return;
-							}
-                            var eSetPercentage = bL.hv(eSetPercentage, 0, 100); 
-							e.target.value = SetPercentage = eSetPercentage;
-							localStorage.setItem('SetPercentage', SetPercentage.toString());
-                        }
-                        ));
+                        },0,0,0);
+						startPercentageBox.e.addEventListener(S[52], function(e) {
+							commitDecimalInput(e, SetPercentage, 0, 100, function(value) {
+								SetPercentage = value;
+								localStorage.setItem('SetPercentage', SetPercentage.toString());
+							});
+						});
+						aNX.qS(startPercentageBox);
 						aNX.qS(new sG()); //line
 						aNX.qH("Disable These:");
 				
@@ -22942,6 +23121,42 @@
 							localStorage.setItem('ZeroDensOnly', value.toString());
 						}));
 						
+                        qW.push(aNX);
+                    }
+					function Score(qW) {
+                        var aNX = new qE();
+                        aNX.qH("Score");
+						
+                        aNX.qP(new uP({
+                            uT: ["Score", "Percentage"],
+                            value: ShowScoreInsteadOfAccuracy ? 0 : 1
+                        },function(e8) {
+                            var showScore = e8 === 0;
+                            if (ShowScoreInsteadOfAccuracy === showScore) {
+                                return;
+                            }
+                            ShowScoreInsteadOfAccuracy = showScore;
+                        }
+                        ));
+						aNX.qS(new sG()); //line
+						aNX.qS(new rPLabel("Density:", {
+							e8: -1,
+                           value: MathDens
+                        },0,0,function(e) {
+							commitDecimalInput(e, MathDens, 0, 100, function(value) {
+								MathDens = value;
+								localStorage.setItem('MathDens', MathDens.toString());
+							}, 4);
+                        }));
+						aNX.qS(new rPLabel("Distribution:", {
+							e8: -1,
+                           value: MathPow
+                        },0,0,function(e) {
+							commitDecimalInput(e, MathPow, 0, 100, function(value) {
+								MathPow = value;
+								localStorage.setItem('MathPow', MathPow.toString());
+							}, 4);
+                        }));
                         qW.push(aNX);
                     }
                     function aPz() {
@@ -30473,10 +30688,12 @@
                     this.aYo = new Uint32Array(aHE);
                     this.a3d = new Uint32Array(aHE);
                     this.aBL = new Uint16Array(aHE);
+                    this.aYAccuracy = new Float64Array(aHE);
+                    this.aYScore = new Float64Array(aHE);
                     this.aRP = 0;
                     var aYp = 1;
                     var aYq = 0;
-                    this.max = [0, 0, 0];
+                    this.max = [0, 0, 0, 0, 0];
                     this.aYr = 0;
                     this.mf = new Array(21);
                     this.aYs = null;
@@ -30558,6 +30775,8 @@
                         self.aYo[self.aRP] = ag.gb[aD.eX];
                         self.a3d[self.aRP] = ag.gp[aD.eX];
                         self.aBL[self.aRP] = ae.aBM(aD.eX);
+                        self.aYAccuracy[self.aRP] = getDecayAccuracyValue();
+                        self.aYScore[self.aRP] = getDecayScoreValue();
                         aYv(self, self.aRP);
                         self.aRP++;
                         if (self.aRP === aHE) {
@@ -30577,6 +30796,8 @@
                             self.aYo[aB] = self.aYo[aB * 2];
                             self.a3d[aB] = self.a3d[aB * 2];
                             self.aBL[aB] = self.aBL[aB * 2];
+                            self.aYAccuracy[aB] = self.aYAccuracy[aB * 2];
+                            self.aYScore[aB] = self.aYScore[aB * 2];
                             aYv(self, aB);
                         }
                         aYp *= 2;
@@ -30588,6 +30809,8 @@
                         self.max[0] = Math.max(self.aYo[aB], self.max[0]);
                         self.max[1] = Math.max(self.a3d[aB], self.max[1]);
                         self.max[2] = Math.max(self.aBL[aB], self.max[2]);
+                        self.max[3] = Math.max(getAccuracyGraphValue(self.aYAccuracy[aB]), self.max[3]);
+                        self.max[4] = Math.max(getScoreGraphValue(self.aYScore[aB]), self.max[4]);
                     }
                 }
                 function dQ() {
@@ -30612,7 +30835,7 @@
                     this.aZ5 = false;
                     this.aZ6 = [0, 0];
                     this.de = function() {
-                        this.aAw = [L(482), L(115, 0, "Balance"), L(114, 0, S[104]), L(483)];
+                        this.aAw = [L(482), L(115, 0, "Balance"), L(114, 0, S[104]), ShowScoreInsteadOfAccuracy ? "Score" : "Accuracy", L(483)];
                     }
                     ;
                     this.dd = function() {
@@ -30667,7 +30890,7 @@
                         if (lQ < this.j - this.tf) {
                             this.aZ5 = true;
                             this.aZ4 = (lP - 2 * this.sx - this.aYx) / this.aYy;
-                            if (this.e8 !== 3) {
+                            if (this.e8 !== 4) {
                                 bf.dl = true;
                             }
                             return true;
@@ -30730,6 +30953,26 @@
                             this.aYx = aQ.measureText(bA.ra.zQ(bd.max[this.e8]), bA.qb.sQ(0, this.aZ2));
                         } else if (this.e8 === 2) {
                             this.aYx = aQ.measureText(bA.ra.a4B(6, 2), bA.qb.sQ(0, this.aZ2));
+                        } else if (this.e8 === 3) {
+                            if (ShowScoreInsteadOfAccuracy) {
+                                var maxScoreLevel = Math.max(bd.max[4], 0.000001);
+                                var axisWidth = aQ.measureText(getScoreGraphLabel(Math.floor(maxScoreLevel)), bA.qb.sQ(0, this.aZ2));
+                                var fixedScoreWidth = Math.max(
+                                    aQ.measureText("88.8", bA.qb.sQ(0, this.aZ2)),
+                                    aQ.measureText("8.88", bA.qb.sQ(0, this.aZ2)),
+                                    aQ.measureText("888", bA.qb.sQ(0, this.aZ2)),
+                                    aQ.measureText("0.000", bA.qb.sQ(0, this.aZ2))
+                                );
+                                this.aYx = Math.max(axisWidth, fixedScoreWidth);
+                            } else {
+                                var fixedAccuracyWidth = Math.max(
+                                    aQ.measureText("99.7%", bA.qb.sQ(0, this.aZ2)),
+                                    aQ.measureText("100%", bA.qb.sQ(0, this.aZ2))
+                                );
+                                this.aYx = fixedAccuracyWidth;
+                            }
+                        } else {
+                            this.aYx = 0;
                         }
                         this.aYy = this.i - 2 * this.sx - this.aYx - this.sy;
                     }
@@ -30749,6 +30992,7 @@
                     }
                     ;
                     this.a8l = function() {
+                        this.aZ7();
                         var eu = bL.du(h.i - this.i, 2);
                         var ew = bL.du(h.j - this.j, 2);
                         uk.setTransform(1, 0, 0, 1, eu, ew);
@@ -30766,6 +31010,12 @@
                         } else if (this.e8 === 2) {
                             this.aZA(eu, ew);
                         } else if (this.e8 === 3) {
+                            if (ShowScoreInsteadOfAccuracy) {
+                                this.aZScore(eu, ew);
+                            } else {
+                                this.aZAccuracy(eu, ew);
+                            }
+                        } else if (this.e8 === 4) {
                             this.aZB(eu, ew);
                             this.aZC(eu, ew);
                         }
@@ -30785,7 +31035,7 @@
                         uk.fillRect(this.e8 * dt, this.j - this.tf, dt, this.tf);
                         uk.fillStyle = bB.nj;
                         uk.fillRect(0, this.j - this.tf - 0.5 * this.a7p, this.i, this.a7p);
-                        for (aB = 1; aB <= 3; aB++) {
+                        for (aB = 1; aB < this.aAw.length; aB++) {
                             uk.fillRect(aB * dt, this.j - this.tf, this.a7p, this.tf);
                         }
                         for (aB = this.aAw.length - 1; aB >= 0; aB--) {
@@ -30802,10 +31052,46 @@
                         uk.fillText(bA.yJ.a39(L(484), 0, 0.8 * this.i), Math.floor(this.i / 2), Math.floor(0.55 * this.aZ1));
                     }
                     ;
+                    this.aZCycles = function(currentTick) {
+                        if (currentTick <= 0) {
+                            return;
+                        }
+                        uk.lineWidth = 1;
+                        uk.strokeStyle = "rgba(255,255,255,0.18)";
+                        uk.beginPath();
+                        for (var cycleLine = 0; cycleLine * 100 <= currentTick; cycleLine++) {
+                            var cycleX = cycleLine * 100 * this.aYy / currentTick;
+                            uk.moveTo(cycleX, 0);
+                            uk.lineTo(cycleX, this.aYz);
+                        }
+                        uk.stroke();
+
+                        if (!(this.aZ4 >= 0 && this.aZ4 <= 1)) {
+                            return;
+                        }
+
+                        var selectedTick = Math.max(1, Math.floor(this.aZ4 * Math.max(currentTick - 1, 0)) + 1);
+                        var cycle = Math.floor((selectedTick - 1) / 100) + 1;
+                        var cycleStartTick = (cycle - 1) * 100;
+                        var cycleEndTick = Math.min(cycle * 100, currentTick);
+                        if (cycleEndTick <= cycleStartTick) {
+                            return;
+                        }
+                        var cycleStartX = cycleStartTick * this.aYy / currentTick;
+                        var cycleEndX = cycleEndTick * this.aYy / currentTick;
+                        uk.fillStyle = bB.nj;
+                        bA.qb.textAlign(uk, 1);
+                        uk.fillText(cycle.toString(), (cycleStartX + cycleEndX) / 2, -0.35 * this.aZ2);
+                        bA.qb.textAlign(uk, 2);
+                    }
+                    ;
                     this.aZ9 = function(g, eu, ew) {
                         var l5 = bd.max[this.e8];
+                        var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
                         uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
+                        this.aZCycles(currentTick);
                         uk.lineWidth = 2;
+                        uk.strokeStyle = bB.nj;
                         var a2W = this.aYz / Math.sqrt(l5);
                         uk.beginPath();
                         uk.moveTo(this.aYy, this.aYz - a2W * Math.sqrt(g[bd.aRP - 1]));
@@ -30826,8 +31112,11 @@
                     }
                     ;
                     this.aZA = function(eu, ew) {
+                        var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
                         uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
+                        this.aZCycles(currentTick);
                         uk.lineWidth = 2;
+                        uk.strokeStyle = bB.nj;
                         var a2W = this.aYz / Math.max(bd.max[this.e8], 1);
                         uk.beginPath();
                         uk.moveTo(this.aYy, this.aYz - a2W * bd.aBL[bd.aRP - 1]);
@@ -30848,16 +31137,153 @@
                         }
                     }
                     ;
+                    this.aZAccuracy = function(eu, ew) {
+                        var g = bd.aYAccuracy;
+                        var maxLevel = Math.max(bd.max[3], 0.000001);
+                        var a2W = this.aYz / maxLevel;
+                        var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
+                        uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
+                        this.aZCycles(currentTick);
+
+                        uk.lineWidth = 2;
+                        uk.strokeStyle = bB.nj;
+                        uk.beginPath();
+                        var value = getAccuracyGraphValue(g[bd.aRP - 1]);
+                        uk.moveTo(this.aYy, this.aYz - a2W * value);
+                        for (var aB = bd.aRP - 2; aB >= 0; aB--) {
+                            value = getAccuracyGraphValue(g[aB]);
+                            uk.lineTo(aB * this.aYy / (bd.aRP - 1), this.aYz - a2W * value);
+                        }
+                        uk.stroke();
+
+                        var accuracyLevels = [0, 70, 90, 97, 99, 99.7, 100];
+                        uk.lineWidth = 1;
+                        uk.strokeStyle = "rgba(255,255,255,0.18)";
+                        for (var levelIndex = 0; levelIndex < accuracyLevels.length; levelIndex++) {
+                            var levelPercentage = accuracyLevels[levelIndex];
+                            var levelValue = getAccuracyGraphValue(levelPercentage / 100);
+                            if (levelValue > maxLevel + 0.000001) {
+                                continue;
+                            }
+                            var levelY = this.aYz - levelValue * a2W;
+                            uk.beginPath();
+                            uk.moveTo(0, levelY);
+                            uk.lineTo(this.aYy, levelY);
+                            uk.stroke();
+                            uk.fillStyle = bB.nj;
+                            uk.fillText((levelPercentage % 1 === 0 ? levelPercentage.toFixed(0) : levelPercentage.toFixed(1)) + "%", -this.sx, levelY);
+                        }
+
+                        if (this.aZ4 >= 0 && this.aZ4 <= 1) {
+                            var sample = this.aZ4 * (bd.aRP - 1);
+                            var index = Math.floor(sample);
+                            var fW = g[index];
+                            var fY = g[index < bd.aRP - 1 ? index + 1 : index];
+                            var accuracy = fW + (sample - index) * (fY - fW);
+                            var scaledAccuracy = getAccuracyGraphValue(accuracy);
+                            var x = sample * this.aYy / (bd.aRP - 1);
+                            var y = this.aYz - a2W * scaledAccuracy;
+
+                            uk.strokeStyle = bB.nm;
+                            if (this.aZ4 > 0.04) {
+                                this.aZE(0, y, x, y);
+                            }
+                            if (scaledAccuracy / maxLevel > 0.04) {
+                                this.aZE(x, this.aYz, x, y);
+                            }
+
+                            uk.fillStyle = bB.oK;
+                            uk.beginPath();
+                            uk.arc(x, y, Math.max(2, 0.014 * this.j), 0, 2 * Math.PI);
+                            uk.fill();
+
+                            var eM = this.aZ4 * bf.aBN * currentTick;
+                            uk.fillStyle = bB.nj;
+                            var labelText = (100 * accuracy).toFixed(1) + "%";
+                            var labelY = Math.max(0.6 * this.aZ2, Math.min(this.aYz - 0.6 * this.aZ2, y));
+                            uk.fillText(labelText, -this.sx, labelY);
+                            bA.qb.textAlign(uk, 1);
+                            uk.fillText(aW.aBA(eM), x, this.aYz + this.aZ2 - (a0.a1.hw() ? 2 : 0) - this.a7p);
+                            bA.qb.textAlign(uk, 2);
+                        }
+                    }
+                    ;
+                    this.aZScore = function(eu, ew) {
+                        var g = bd.aYScore;
+                        var maxLevel = Math.max(bd.max[4], 0.000001);
+                        var a2W = this.aYz / maxLevel;
+                        var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
+                        uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
+                        this.aZCycles(currentTick);
+
+                        uk.lineWidth = 2;
+                        uk.strokeStyle = bB.nj;
+                        uk.beginPath();
+                        var value = getScoreGraphValue(g[bd.aRP - 1]);
+                        uk.moveTo(this.aYy, this.aYz - a2W * value);
+                        for (var aB = bd.aRP - 2; aB >= 0; aB--) {
+                            value = getScoreGraphValue(g[aB]);
+                            uk.lineTo(aB * this.aYy / (bd.aRP - 1), this.aYz - a2W * value);
+                        }
+                        uk.stroke();
+
+                        uk.lineWidth = 1;
+                        uk.strokeStyle = "rgba(255,255,255,0.18)";
+                        for (var level = 0; level <= Math.floor(maxLevel); level++) {
+                            var levelY = this.aYz - level * a2W;
+                            uk.beginPath();
+                            uk.moveTo(0, levelY);
+                            uk.lineTo(this.aYy, levelY);
+                            uk.stroke();
+                            uk.fillStyle = bB.nj;
+                            uk.fillText(getScoreGraphLabel(level), -this.sx, levelY);
+                        }
+
+                        if (this.aZ4 >= 0 && this.aZ4 <= 1) {
+                            var sample = this.aZ4 * (bd.aRP - 1);
+                            var index = Math.floor(sample);
+                            var fW = g[index];
+                            var fY = g[index < bd.aRP - 1 ? index + 1 : index];
+                            var score = fW + (sample - index) * (fY - fW);
+                            var scaledScore = getScoreGraphValue(score);
+                            var x = sample * this.aYy / (bd.aRP - 1);
+                            var y = this.aYz - a2W * scaledScore;
+
+                            uk.strokeStyle = bB.nm;
+                            if (this.aZ4 > 0.04) {
+                                this.aZE(0, y, x, y);
+                            }
+                            if (scaledScore / maxLevel > 0.04) {
+                                this.aZE(x, this.aYz, x, y);
+                            }
+
+                            uk.fillStyle = bB.oK;
+                            uk.beginPath();
+                            uk.arc(x, y, Math.max(2, 0.014 * this.j), 0, 2 * Math.PI);
+                            uk.fill();
+
+                            var eM = this.aZ4 * bf.aBN * currentTick;
+                            uk.fillStyle = bB.nj;
+                            var labelText = formatScore(score);
+                            var labelY = Math.max(0.6 * this.aZ2, Math.min(this.aYz - 0.6 * this.aZ2, y));
+                            uk.fillText(labelText, -this.sx, labelY);
+                            bA.qb.textAlign(uk, 1);
+                            uk.fillText(aW.aBA(eM), x, this.aYz + this.aZ2 - (a0.a1.hw() ? 2 : 0) - this.a7p);
+                            bA.qb.textAlign(uk, 2);
+                        }
+                    }
+                    ;
                     this.aZB = function(eu, ew) {
                         var aB;
                         uk.setTransform(1, 0, 0, 1, eu + 0.34 * this.i, ew + 2 * aZ0 + this.aZ1);
                         bA.qb.textAlign(uk, 2);
                         var aAh = this.j - 4 * aZ0 - this.tf - this.aZ1;
-                        var en = 10;
+                        var en = 11;
                         var g = [0, 1, 19, 2, 20, 3, 4, 5, 6, 7];
                         for (aB = 9; aB >= 0; aB--) {
                             uk.fillText(bA.yJ.a39(bd.aYs[g[aB]], 0, 0.31 * this.i), 0, aB * aAh / (en - 1));
                         }
+                        uk.fillText("Accuracy", 0, aAh);
                         var fF = bd.mf;
                         uk.setTransform(1, 0, 0, 1, eu + 0.39 * this.i, ew + 2 * aZ0 + this.aZ1);
                         bA.qb.textAlign(uk, 0);
@@ -30865,7 +31291,9 @@
                         for (aB = 8; aB >= 1; aB--) {
                             uk.fillText(fF[g[aB]].toString(), 0, aB * aAh / (en - 1));
                         }
-                        uk.fillText(bA.ra.a4B(100 * (1 - ag.gb[aD.eX] / fF[7]), 0), 0, aAh);
+                        uk.fillText(bA.ra.a4B(100 * (1 - ag.gb[aD.eX] / fF[7]), 0), 0, 9 * aAh / (en - 1));
+                        var accuracy = getAccuracyValue();
+                        uk.fillText((100 * accuracy).toFixed(1) + "%", 0, aAh);
                     }
                     ;
                     this.aZC = function(eu, ew) {
@@ -30873,7 +31301,7 @@
                         uk.setTransform(1, 0, 0, 1, eu + 0.79 * this.i, ew + 2 * aZ0 + this.aZ1);
                         bA.qb.textAlign(uk, 2);
                         var aAh = this.j - 4 * aZ0 - this.tf - this.aZ1;
-                        var en = 9;
+                        var en = 10;
                         uk.fillStyle = bB.o0;
                         for (aB = 2; aB >= 0; aB--) {
                             uk.fillText(bA.yJ.a39(bd.aYs[aB + 8], 0, 0.31 * this.i), 0, aB * aAh / en);
@@ -30887,7 +31315,10 @@
                         uk.fillText(bA.yJ.a39(bd.aYs[16], 0, 0.31 * this.i), 0, 7 * aAh / en);
                         uk.fillText(bA.yJ.a39(bd.aYs[12], 0, 0.31 * this.i), 0, 8 * aAh / en);
                         uk.fillStyle = bB.oH;
-                        uk.fillText(bA.yJ.a39(bd.aYs[17], 0, 0.31 * this.i), 0, aAh);
+                        uk.fillText(bA.yJ.a39(bd.aYs[17], 0, 0.31 * this.i), 0, 9 * aAh / en);
+                        uk.fillStyle = bB.nj;
+                        uk.fillText("Score", 0, aAh);
+
                         uk.fillStyle = bB.o0;
                         var fF = bd.mf;
                         var aEe = fF[8] + fF[9] + fF[10] + fF[18];
@@ -30907,7 +31338,13 @@
                         uk.fillText(bA.ra.zQ(fF[12]), 0, 8 * aAh / en);
                         var aZD = fF[12] + fF[13] + fF[15] + fF[16];
                         uk.fillStyle = bB.oH;
-                        uk.fillText(bA.ra.zQ(aZD), 0, aAh);
+                        uk.fillText(bA.ra.zQ(aZD), 0, 9 * aAh / en);
+                        var score = 1 / ((PercClaim + 0.0001) / PercAcc - 1);
+                        if (!isFinite(score)) {
+                            score = 0;
+                        }
+                        uk.fillStyle = bB.nj;
+                        uk.fillText(formatScore(score), 0, aAh);
                         uk.fillStyle = bB.nj;
                     }
                     ;
@@ -31815,6 +32252,12 @@
 					LogArray = []
 					LastAttack = 0;
 					TotalPauses = 0;
+					PercAcc = 0;
+					PercClaim = LowestClaim;
+					DecayPercAcc = PercAcc;
+					DecayPercClaim = PercClaim;
+					ClaimedPixels = new Uint8Array(0);
+					PreviouslyClaimedLand = 0;
 					PercentATK = 0;
 					PercentDiff = 0;
 					LastSample = -1;
@@ -31954,6 +32397,11 @@
                     var eM = bf.eM;
                     this.aa2 = 0;
 					LastAttack = 0;
+					PercAcc = 0;
+					PercClaim = LowestClaim;
+					DecayPercAcc = PercAcc;
+					DecayPercClaim = PercClaim;
+					ClaimedPixels = new Uint8Array(0);
 					errorPrint = true
                     this.dd = function() {
                         aaA = 0;
@@ -32123,6 +32571,12 @@
 					PercentDiff = 0;
 					LastSample = -1;
 					TotalPauses = 0;
+					PercAcc = 0;
+					PercClaim = LowestClaim;
+					DecayPercAcc = PercAcc;
+					DecayPercClaim = PercClaim;
+					ClaimedPixels = new Uint8Array(0);
+					PreviouslyClaimedLand = 0;
 					LogArray = []
 					updateKeybindLists()
 					errorPrint = true
@@ -32198,6 +32652,8 @@
 					let PlayerID = aD.eX;
 					let f88 = bd.mf;
 					this.a0I.aa2++;
+					DecayPercAcc *= DecayPerc ** (1 / 100);
+					DecayPercClaim *= DecayPerc ** (1 / 100);
 					let Tick = bf.k7();
 					aW.updateboard();
 					
