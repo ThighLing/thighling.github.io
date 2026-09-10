@@ -132,13 +132,13 @@
 				? (parseInt(localStorage.getItem('enableMPseed'), 10) || 0)
 				: (localStorage.setItem('enableMPseed', '0'), 0);
 				
-				var MathDens = localStorage.getItem('MathDens') !== null
-				? (parseFloat(localStorage.getItem('MathDens')) || 0)
-				: (localStorage.setItem('MathDens', '1.5'), 1.5);
+				var NewMathDens = localStorage.getItem('NewMathDens') !== null
+				? (parseFloat(localStorage.getItem('NewMathDens')) || 0)
+				: (localStorage.setItem('NewMathDens', '1.5'), 1.5);
 				
-				var MathPow = localStorage.getItem('MathPow') !== null
-				? (parseFloat(localStorage.getItem('MathPow')) || 0)
-				: (localStorage.setItem('MathPow', '10'), 10);
+				var NewMathPow = localStorage.getItem('NewMathPow') !== null
+				? (parseFloat(localStorage.getItem('NewMathPow')) || 0)
+				: (localStorage.setItem('NewMathPow', '0.5'), 0.5);
 				var errorPrint = true
 				var paused = false
 				var KeybindCharList = [];
@@ -160,8 +160,8 @@
 				var PercentDiff = 0;
 				var LastSample = -1;
 				/*
-				var MathDens = 2
-				var MathPow = 10*/
+				var NewMathDens = 2
+				var NewMathPow = 10*/
 				var PercAcc = 0;
 				var LowestClaim = 0.025
 				var DecayCap = 0.001
@@ -1169,7 +1169,9 @@
                     var gm = fh * fj;
 					if (fe === PlayerID) {
 						var fraction = (fj / ag.gb[PlayerID])
-						var AccGain = fraction/((( (ag.gp[fi]/ag.gb[fi]))/MathDens)**(MathPow*MathDens)+1)//fraction/(((gh/fj)/MathDens)**MathPow+1)
+						var MathPow = 10/NewMathPow
+						var MathDens = NewMathDens+NewMathPow/2
+						var AccGain = fraction/((( (ag.gp[fi]/ag.gb[fi]))/MathDens)**(MathPow*MathDens)+1)//fraction/(((gh/fj)/NewMathDens)**NewMathPow+1)
 						PercAcc += AccGain
 						PercClaim += fraction
 						DecayPercAcc += AccGain
@@ -23134,20 +23136,20 @@
 						aNX.qS(new sG()); //line
 						aNX.qS(new rPLabel("Density:", {
 							e8: -1,
-                           value: MathDens
+                           value: NewMathDens
                         },0,0,function(e) {
-							commitDecimalInput(e, MathDens, 0, 100, function(value) {
-								MathDens = value;
-								localStorage.setItem('MathDens', MathDens.toString());
+							commitDecimalInput(e, NewMathDens, 0, 100, function(value) {
+								NewMathDens = value;
+								localStorage.setItem('NewMathDens', NewMathDens.toString());
 							}, 4);
                         }));
 						aNX.qS(new rPLabel("Distribution:", {
 							e8: -1,
-                           value: MathPow
+                           value: NewMathPow
                         },0,0,function(e) {
-							commitDecimalInput(e, MathPow, 0, 100, function(value) {
-								MathPow = value;
-								localStorage.setItem('MathPow', MathPow.toString());
+							commitDecimalInput(e, NewMathPow, 0, 100, function(value) {
+								NewMathPow = value;
+								localStorage.setItem('NewMathPow', NewMathPow.toString());
 							}, 4);
                         }));
                         qW.push(aNX);
