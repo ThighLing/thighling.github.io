@@ -162,11 +162,14 @@
 				/*
 				var NewMathDens = 2
 				var NewMathPow = 10*/
-				var PercAcc = 0;
+				var DecayPerc = localStorage.getItem('DecayPerc') !== null
+				? (parseFloat(localStorage.getItem('DecayPerc')) || 0)
+				: (localStorage.setItem('DecayPerc', '0.1'), 0.1);
+				var defaultPerc = 1;
+				var PercAcc = DecayPerc * defaultPerc;
 				var LowestClaim = 0.025
 				var DecayCap = 0.001
-				var PercClaim = LowestClaim;
-				var DecayPerc = 0.1;
+				var PercClaim = DecayPerc;
 				var ShowScoreInsteadOfAccuracy = localStorage.getItem('ShowScoreInsteadOfAccuracy') !== null
 				? (parseInt(localStorage.getItem('ShowScoreInsteadOfAccuracy'), 10) === 1)
 				: (localStorage.setItem('ShowScoreInsteadOfAccuracy', '0'), false);
@@ -23152,6 +23155,15 @@
 								localStorage.setItem('NewMathPow', NewMathPow.toString());
 							}, 4);
                         }));
+						aNX.qS(new rPLabel("Change:", {
+							e8: -1,
+                           value: DecayPerc
+                        },0,0,function(e) {
+							commitDecimalInput(e, DecayPerc, 0, 100, function(value) {
+								DecayPerc = value;
+								localStorage.setItem('DecayPerc', DecayPerc.toString());
+							}, 4);
+                        }));
                         qW.push(aNX);
                     }
                     function aPz() {
@@ -32247,8 +32259,8 @@
 					LogArray = []
 					LastAttack = 0;
 					TotalPauses = 0;
-					PercAcc = 0;
-					PercClaim = LowestClaim;
+					PercAcc = DecayPerc * defaultPerc;
+					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
 					ClaimedPixels = new Uint8Array(0);
@@ -32392,8 +32404,8 @@
                     var eM = bf.eM;
                     this.aa2 = 0;
 					LastAttack = 0;
-					PercAcc = 0;
-					PercClaim = LowestClaim;
+					PercAcc = DecayPerc * defaultPerc;
+					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
 					ClaimedPixels = new Uint8Array(0);
@@ -32566,8 +32578,8 @@
 					PercentDiff = 0;
 					LastSample = -1;
 					TotalPauses = 0;
-					PercAcc = 0;
-					PercClaim = LowestClaim;
+					PercAcc = DecayPerc * defaultPerc;
+					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
 					ClaimedPixels = new Uint8Array(0);
@@ -32647,8 +32659,11 @@
 					let PlayerID = aD.eX;
 					let f88 = bd.mf;
 					this.a0I.aa2++;
-					DecayPercAcc *= DecayPerc ** (1 / 100);
-					DecayPercClaim *= DecayPerc ** (1 / 100);
+					if (DecayPercClaim !== 0) {
+						var decayFactor = DecayPerc / DecayPercClaim;
+						DecayPercAcc *= decayFactor;
+						DecayPercClaim *= decayFactor;
+					}
 					let Tick = bf.k7();
 					aW.updateboard();
 					
