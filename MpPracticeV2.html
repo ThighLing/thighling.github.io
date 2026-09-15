@@ -132,13 +132,14 @@
 				? (parseInt(localStorage.getItem('enableMPseed'), 10) || 0)
 				: (localStorage.setItem('enableMPseed', '0'), 0);
 				
-				var NewMathDens = localStorage.getItem('NewMathDens') !== null
-				? (parseFloat(localStorage.getItem('NewMathDens')) || 0)
-				: (localStorage.setItem('NewMathDens', '1.5'), 1.5);
+				var MathBaseDens = localStorage.getItem('MathBaseDens') !== null
+				? (parseFloat(localStorage.getItem('MathBaseDens')) || 0)
+				: (localStorage.setItem('MathBaseDens', '1.7'), 1.7);
 				
-				var NewMathPow = localStorage.getItem('NewMathPow') !== null
-				? (parseFloat(localStorage.getItem('NewMathPow')) || 0)
-				: (localStorage.setItem('NewMathPow', '0.5'), 0.5);
+				var MathMulti = localStorage.getItem('MathMulti') !== null
+				? (parseFloat(localStorage.getItem('MathMulti')) || 0)
+				: (localStorage.setItem('MathMulti', '1'), 1);
+				var MathPow = 2;
 				var errorPrint = true
 				var paused = false
 				var KeybindCharList = [];
@@ -160,8 +161,8 @@
 				var PercentDiff = 0;
 				var LastSample = -1;
 				/*
-				var NewMathDens = 2
-				var NewMathPow = 10*/
+				var MathBaseDens = 2
+				var MathMulti = 10*/
 				var DecayPerc = localStorage.getItem('DecayPerc') !== null
 				? (parseFloat(localStorage.getItem('DecayPerc')) || 0)
 				: (localStorage.setItem('DecayPerc', '0.1'), 0.1);
@@ -1172,9 +1173,17 @@
                     var gm = fh * fj;
 					if (fe === PlayerID) {
 						var fraction = (fj / ag.gb[PlayerID])
-						var MathPow = 10/NewMathPow
-						var MathDens = NewMathDens+NewMathPow/2
-						var AccGain = fraction/((( (ag.gp[fi]/ag.gb[fi]))/MathDens)**(MathPow*MathDens)+1)//fraction/(((gh/fj)/NewMathDens)**NewMathPow+1)
+						var AccuracyDensity = ag.gp[fi] / ag.gb[fi];
+						var LayerAccuracy;
+						if (AccuracyDensity <= MathBaseDens) {
+							LayerAccuracy = 1;
+						} else if (AccuracyDensity >= MathBaseDens + MathMulti) {
+							LayerAccuracy = 0;
+						} else {
+							var MathOffset = AccuracyDensity - MathBaseDens;
+							LayerAccuracy = 1 / (Math.pow(MathOffset / (MathMulti - MathOffset), MathPow) + 1);
+						}
+						var AccGain = fraction * LayerAccuracy;
 						PercAcc += AccGain
 						PercClaim += fraction
 						DecayPercAcc += AccGain
@@ -23139,20 +23148,20 @@
 						aNX.qS(new sG()); //line
 						aNX.qS(new rPLabel("Density:", {
 							e8: -1,
-                           value: NewMathDens
+                           value: MathBaseDens
                         },0,0,function(e) {
-							commitDecimalInput(e, NewMathDens, 0, 100, function(value) {
-								NewMathDens = value;
-								localStorage.setItem('NewMathDens', NewMathDens.toString());
+							commitDecimalInput(e, MathBaseDens, 0, 100, function(value) {
+								MathBaseDens = value;
+								localStorage.setItem('MathBaseDens', MathBaseDens.toString());
 							}, 4);
                         }));
 						aNX.qS(new rPLabel("Distribution:", {
 							e8: -1,
-                           value: NewMathPow
+                           value: MathMulti
                         },0,0,function(e) {
-							commitDecimalInput(e, NewMathPow, 0, 100, function(value) {
-								NewMathPow = value;
-								localStorage.setItem('NewMathPow', NewMathPow.toString());
+							commitDecimalInput(e, MathMulti, 0, 100, function(value) {
+								MathMulti = value;
+								localStorage.setItem('MathMulti', MathMulti.toString());
 							}, 4);
                         }));
 						aNX.qS(new rPLabel("Change:", {
