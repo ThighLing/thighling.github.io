@@ -163,19 +163,25 @@
 				/*
 				var MathBaseDens = 2
 				var MathMulti = 10*/
-				var DecayPerc = localStorage.getItem('DecayPerc') !== null
-				? (parseFloat(localStorage.getItem('DecayPerc')) || 0)
-				: (localStorage.setItem('DecayPerc', '0.1'), 0.1);
+				var DecayPerc = 0.1;
+				var DecayPercMulti = localStorage.getItem('DecayPercMulti') !== null
+				? (parseFloat(localStorage.getItem('DecayPercMulti')) || 0)
+				: (localStorage.setItem('DecayPercMulti', '1.6'), 1.6);
+				var BlueLine = 0;
+				var DecayLandBeforeTick = 0;
+				var ClaimedLandThisTick = 0;
 				var defaultPerc = 1;
 				var PercAcc = DecayPerc * defaultPerc;
 				var LowestClaim = 0.025
-				var DecayCap = 0.001
+				var DecayCap = 0
 				var PercClaim = DecayPerc;
 				var ShowScoreInsteadOfAccuracy = localStorage.getItem('ShowScoreInsteadOfAccuracy') !== null
 				? (parseInt(localStorage.getItem('ShowScoreInsteadOfAccuracy'), 10) === 1)
 				: (localStorage.setItem('ShowScoreInsteadOfAccuracy', '0'), false);
 				var DecayPercAcc = PercAcc;
 				var DecayPercClaim = PercClaim;
+				var LandTickHistory = [];
+				var LandTickHistorySum = 0;
 				var ClaimedPixels = new Uint8Array(0);
 				var PreviouslyClaimedLand = 0;
 
@@ -193,6 +199,76 @@
 					}
 					var score = 1 / ((DecayPercClaim +(DecayCap*DecayPerc)) / DecayPercAcc - 1);
 					return isFinite(score) && score > 0 ? score : 0;
+				}
+
+
+
+				function updateLandHistory() {
+					var land = ag.gb[aD.eX];
+					LandTickHistory.push(land);
+					LandTickHistorySum += land;
+					if (LandTickHistory.length > 200) {
+						LandTickHistorySum -= LandTickHistory.shift();
+					}
+				}
+
+				function updateBlueLine() {
+					var newerSum = 0;
+					var newerCount = 0;
+					var olderSum = 0;
+					var olderCount = 0;
+
+					for (var offset = 0; offset < LandTickHistory.length && offset < 200; offset++) {
+						var historyIndex = LandTickHistory.length - 1 - offset;
+						if (offset < 100) {
+							newerSum += LandTickHistory[historyIndex];
+							newerCount++;
+						} else {
+							olderSum += LandTickHistory[historyIndex];
+							olderCount++;
+						}
+					}
+
+					if (newerCount === 0 || olderCount === 0) {
+						return;
+					}
+
+					var newerAverage = newerSum / newerCount;
+					var olderAverage = olderSum / olderCount;
+					if (newerAverage <= 0 || olderAverage <= 0 || BlueLine <= -1) {
+						return;
+					}
+
+					var landAverageRatio = newerAverage / olderAverage;
+					BlueLine = Math.exp(
+						(
+							Math.log(landAverageRatio) +
+							Math.log(BlueLine + 1) * 100
+						) / 101
+					) - 1;
+				}
+
+				function getLand199TickAverageRatio() {
+					if (LandTickHistory.length <= 1) {
+						return 1;
+					}
+					var currentLand = LandTickHistory[LandTickHistory.length - 1];
+					var previousCount = LandTickHistory.length - 1;
+					var previousLandSum = LandTickHistorySum - currentLand;
+					var averageLand = previousLandSum / previousCount;
+					if (averageLand <= 0) {
+						return 1;
+					}
+					return currentLand / averageLand;
+				}
+
+				function getLandChangeGraphValue(ratio) {
+					var percentAbove = ratio - 1;
+					return Math.max(0, Math.min(percentAbove / 0.4, 1));
+				}
+
+				function getBlueLineGraphValue(value) {
+					return Math.max(0, Math.min(value / 0.4, 1));
 				}
 
 				function getScoreGraphValue(value) {
@@ -224,8 +300,15 @@
 
 				function getAccuracyGraphValue(value) {
 					var x = Math.max(0, Math.min(value, 1));
-					var power = 2.5 / (100 * Math.pow(x - 0.88, 2) + 1) + 8.7- 5*x
-					return Math.pow(x, power);
+					if (x <= 0.9) {
+						var scaledX = x / 0.9;
+						return (
+							Math.pow(scaledX, 2) +
+							Math.pow(scaledX, 4) +
+							Math.pow(scaledX, 21)
+						) / 6;
+					}
+					return 5 * x - 4;
 				}
 
 				function getAccuracyGraphLabel(level) {
@@ -1153,6 +1236,13 @@
                     fp = true;
                     ad.gZ(fe, fd, ff);
                     ad.ga(fe, fd);
+                    if (fe === aD.eX && fj > 0) {
+                        if (fi === aD.ek) {
+                            ClaimedLandThisTick += PreviouslyClaimedLand;
+                        } else {
+                            ClaimedLandThisTick += fj;
+                        }
+                    }
                     ag.gb[fe] += fj;
                     bs.gc();
                     gd();
@@ -2820,6 +2910,8 @@
                     b0.y.j3();
                 }
                 function mO() {
+                    DecayLandBeforeTick = ag.gb[aD.eX];
+                    ClaimedLandThisTick = 0;
                     b1.j3();
                     aG.j3();
                     an.j3();
@@ -2842,6 +2934,17 @@
                     b5.j3();
                     aR.j3();
                     aw.j3();
+
+                    var claimedGrowthThisTick = 0;
+                    if (DecayLandBeforeTick > 0 && ClaimedLandThisTick > 0) {
+                        claimedGrowthThisTick = Math.log(
+                            (DecayLandBeforeTick + ClaimedLandThisTick) / DecayLandBeforeTick
+                        );
+                    }
+                    DecayPerc = claimedGrowthThisTick + DecayPerc * 0.99;
+
+                    updateLandHistory();
+                    updateBlueLine();
                     bd.j3();
                     bh.j3();
                     b0.y.j3();
@@ -23166,13 +23269,14 @@
                         }));
 						aNX.qS(new rPLabel("Change:", {
 							e8: -1,
-                           value: DecayPerc
+                           value: DecayPercMulti
                         },0,0,function(e) {
-							commitDecimalInput(e, DecayPerc, 0, 100, function(value) {
-								DecayPerc = value;
-								localStorage.setItem('DecayPerc', DecayPerc.toString());
+							commitDecimalInput(e, DecayPercMulti, 0, 100, function(value) {
+								DecayPercMulti = value;
+								localStorage.setItem('DecayPercMulti', DecayPercMulti.toString());
 							}, 4);
                         }));
+
                         qW.push(aNX);
                     }
                     function aPz() {
@@ -30706,6 +30810,8 @@
                     this.aBL = new Uint16Array(aHE);
                     this.aYAccuracy = new Float64Array(aHE);
                     this.aYScore = new Float64Array(aHE);
+                    this.aYLand199TickRatio = new Float64Array(aHE);
+                    this.aYBlueLine = new Float64Array(aHE);
                     this.aRP = 0;
                     var aYp = 1;
                     var aYq = 0;
@@ -30793,6 +30899,8 @@
                         self.aBL[self.aRP] = ae.aBM(aD.eX);
                         self.aYAccuracy[self.aRP] = getDecayAccuracyValue();
                         self.aYScore[self.aRP] = getDecayScoreValue();
+                        self.aYLand199TickRatio[self.aRP] = getLand199TickAverageRatio();
+                        self.aYBlueLine[self.aRP] = BlueLine;
                         aYv(self, self.aRP);
                         self.aRP++;
                         if (self.aRP === aHE) {
@@ -30814,6 +30922,8 @@
                             self.aBL[aB] = self.aBL[aB * 2];
                             self.aYAccuracy[aB] = self.aYAccuracy[aB * 2];
                             self.aYScore[aB] = self.aYScore[aB * 2];
+                            self.aYLand199TickRatio[aB] = self.aYLand199TickRatio[aB * 2];
+                            self.aYBlueLine[aB] = self.aYBlueLine[aB * 2];
                             aYv(self, aB);
                         }
                         aYp *= 2;
@@ -31155,11 +31265,98 @@
                     ;
                     this.aZAccuracy = function(eu, ew) {
                         var g = bd.aYAccuracy;
+                        var landRatio = bd.aYLand199TickRatio;
+                        var blueLineHistory = bd.aYBlueLine;
                         var maxLevel = 1;
                         var a2W = this.aYz;
                         var currentTick = ag.mj[aD.eX] === 0 ? bd.aYr : bf.k7();
                         uk.setTransform(1, 0, 0, 1, eu + 2 * this.sx + this.aYx, ew + this.a8T + this.aZ1);
                         this.aZCycles(currentTick);
+
+                        var hasHover = this.aZ4 >= 0 && this.aZ4 <= 1;
+                        var sample = 0;
+                        var index = 0;
+                        var accuracy = 0;
+                        var scaledAccuracy = 0;
+                        var x = 0;
+                        var y = 0;
+                        var selectedLandRatio = 1;
+                        var scaledLandRatio = 0;
+                        var landY = this.aYz;
+                        var labelY = 0;
+                        var landLabelY = 0;
+
+                        if (hasHover) {
+                            sample = this.aZ4 * (bd.aRP - 1);
+                            index = Math.floor(sample);
+
+                            var fW = g[index];
+                            var fY = g[index < bd.aRP - 1 ? index + 1 : index];
+                            accuracy = fW + (sample - index) * (fY - fW);
+                            scaledAccuracy = getAccuracyGraphValue(accuracy);
+                            x = sample * this.aYy / (bd.aRP - 1);
+                            y = this.aYz - a2W * scaledAccuracy;
+                            labelY = y;
+
+                            var landFW = landRatio[index];
+                            var landFY = landRatio[index < bd.aRP - 1 ? index + 1 : index];
+                            selectedLandRatio = landFW + (sample - index) * (landFY - landFW);
+                            scaledLandRatio = getLandChangeGraphValue(selectedLandRatio);
+                            landY = this.aYz - a2W * scaledLandRatio;
+                            landLabelY = landY;
+                        }
+
+                        // Blue smoothed 0..99 / 100..199 land-average line.
+                        // Visual only: no hover point, label, or guide line.
+                        // Drawn 100 game ticks earlier than when each value was computed.
+                        uk.lineWidth = 2;
+                        uk.strokeStyle = "rgb(40,140,255)";
+                        uk.beginPath();
+
+                        var blueShiftX = currentTick > 0
+                            ? 100 * this.aYy / currentTick
+                            : 0;
+                        var blueStarted = false;
+
+                        for (var blueIndex = 0; blueIndex < bd.aRP; blueIndex++) {
+                            var blueX =
+                                blueIndex * this.aYy / (bd.aRP - 1)
+                                - blueShiftX;
+
+                            if (blueX < 0) {
+                                continue;
+                            }
+
+                            var blueValue =
+                                getBlueLineGraphValue(
+                                    blueLineHistory[blueIndex]
+                                );
+                            var blueY =
+                                this.aYz - a2W * blueValue;
+
+                            if (!blueStarted) {
+                                uk.moveTo(blueX, blueY);
+                                blueStarted = true;
+                            } else {
+                                uk.lineTo(blueX, blueY);
+                            }
+                        }
+
+                        if (blueStarted) {
+                            uk.stroke();
+                        }
+
+                        // Green land-change line next so the white Accuracy line stays on top.
+                        uk.lineWidth = 2;
+                        uk.strokeStyle = "rgb(10,220,10)";
+                        uk.beginPath();
+                        var landValue = getLandChangeGraphValue(landRatio[bd.aRP - 1]);
+                        uk.moveTo(this.aYy, this.aYz - a2W * landValue);
+                        for (var landIndex = bd.aRP - 2; landIndex >= 0; landIndex--) {
+                            landValue = getLandChangeGraphValue(landRatio[landIndex]);
+                            uk.lineTo(landIndex * this.aYy / (bd.aRP - 1), this.aYz - a2W * landValue);
+                        }
+                        uk.stroke();
 
                         uk.lineWidth = 2;
                         uk.strokeStyle = bB.nj;
@@ -31173,6 +31370,14 @@
                         uk.stroke();
 
                         var accuracyLevels = [0, 80, 90, 95, 100];
+                        var labelMetrics = uk.measureText("100.0%");
+                        var labelCollisionDistance =
+                            (labelMetrics.actualBoundingBoxAscent || 0) +
+                            (labelMetrics.actualBoundingBoxDescent || 0);
+                        if (!isFinite(labelCollisionDistance) || labelCollisionDistance <= 0) {
+                            labelCollisionDistance = 0.65 * this.aZ2;
+                        }
+
                         uk.lineWidth = 1;
                         uk.strokeStyle = "rgba(255,255,255,0.18)";
                         for (var levelIndex = 0; levelIndex < accuracyLevels.length; levelIndex++) {
@@ -31186,19 +31391,25 @@
                             uk.moveTo(0, levelY);
                             uk.lineTo(this.aYy, levelY);
                             uk.stroke();
-                            uk.fillStyle = bB.nj;
-                            uk.fillText((levelPercentage % 1 === 0 ? levelPercentage.toFixed(0) : levelPercentage.toFixed(1)) + "%", -this.sx, levelY);
+
+                            // Hide a fixed Accuracy label while either hover value occupies the same space.
+                            if (!hasHover || (
+                                Math.abs(levelY - labelY) >= labelCollisionDistance &&
+                                Math.abs(levelY - landLabelY) >= labelCollisionDistance
+                            )) {
+                                uk.fillStyle = bB.nj;
+                                bA.qb.textAlign(uk, 2);
+                                uk.fillText((levelPercentage % 1 === 0 ? levelPercentage.toFixed(0) : levelPercentage.toFixed(1)) + "%", -this.sx, levelY);
+                            }
+
                         }
 
-                        if (this.aZ4 >= 0 && this.aZ4 <= 1) {
-                            var sample = this.aZ4 * (bd.aRP - 1);
-                            var index = Math.floor(sample);
-                            var fW = g[index];
-                            var fY = g[index < bd.aRP - 1 ? index + 1 : index];
-                            var accuracy = fW + (sample - index) * (fY - fW);
-                            var scaledAccuracy = getAccuracyGraphValue(accuracy);
-                            var x = sample * this.aYy / (bd.aRP - 1);
-                            var y = this.aYz - a2W * scaledAccuracy;
+                        if (hasHover) {
+                            // Green hover guide first, white hover guides afterward.
+                            uk.strokeStyle = "rgba(10,220,10,0.4)";
+                            if (this.aZ4 > 0.04) {
+                                this.aZE(0, landY, x, landY);
+                            }
 
                             uk.strokeStyle = bB.nm;
                             if (this.aZ4 > 0.04) {
@@ -31208,16 +31419,37 @@
                                 this.aZE(x, this.aYz, x, y);
                             }
 
+                            uk.fillStyle = "rgba(10,220,10,0.8)";
+                            uk.beginPath();
+                            uk.arc(x, landY, Math.max(2, 0.014 * this.j), 0, 2 * Math.PI);
+                            uk.fill();
+
                             uk.fillStyle = bB.oK;
                             uk.beginPath();
                             uk.arc(x, y, Math.max(2, 0.014 * this.j), 0, 2 * Math.PI);
                             uk.fill();
 
                             var eM = this.aZ4 * bf.aBN * currentTick;
+
+                            var accuracyText = (100 * accuracy).toFixed(1) + "%";
+                            var landPercentAbove = (selectedLandRatio - 1) * 100;
+                            var landText = landPercentAbove.toFixed(1) + "%";
+                            var hoverLabelsOverlap = Math.abs(labelY - landLabelY) < labelCollisionDistance;
+                            var hideAccuracyHover = accuracy >= 0.99 && hoverLabelsOverlap;
+
+                            var halfCharacterShift = 0.25 * this.aZ2;
+
+                            if (!hideAccuracyHover) {
+                                uk.fillStyle = bB.nj;
+                                bA.qb.textAlign(uk, 2);
+                                uk.fillText(accuracyText, -this.sx + halfCharacterShift, labelY);
+                            }
+
+                            uk.fillStyle = "rgb(10,220,10)";
+                            bA.qb.textAlign(uk, 2);
+                            uk.fillText(landText, -this.sx + halfCharacterShift, landLabelY);
+
                             uk.fillStyle = bB.nj;
-                            var labelText = (100 * accuracy).toFixed(1) + "%";
-                            var labelY = Math.max(0.6 * this.aZ2, Math.min(this.aYz - 0.6 * this.aZ2, y));
-                            uk.fillText(labelText, -this.sx, labelY);
                             bA.qb.textAlign(uk, 1);
                             uk.fillText(aW.aBA(eM), x, this.aYz + this.aZ2 - (a0.a1.hw() ? 2 : 0) - this.a7p);
                             bA.qb.textAlign(uk, 2);
@@ -32268,10 +32500,16 @@
 					LogArray = []
 					LastAttack = 0;
 					TotalPauses = 0;
+					DecayPerc = 0.1;
+					BlueLine = 0;
+					DecayLandBeforeTick = 0;
+					ClaimedLandThisTick = 0;
 					PercAcc = DecayPerc * defaultPerc;
 					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
+					LandTickHistory = [];
+					LandTickHistorySum = 0;
 					ClaimedPixels = new Uint8Array(0);
 					PreviouslyClaimedLand = 0;
 					PercentATK = 0;
@@ -32413,10 +32651,16 @@
                     var eM = bf.eM;
                     this.aa2 = 0;
 					LastAttack = 0;
+					DecayPerc = 0.1;
+					BlueLine = 0;
+					DecayLandBeforeTick = 0;
+					ClaimedLandThisTick = 0;
 					PercAcc = DecayPerc * defaultPerc;
 					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
+					LandTickHistory = [];
+					LandTickHistorySum = 0;
 					ClaimedPixels = new Uint8Array(0);
 					errorPrint = true
                     this.dd = function() {
@@ -32587,10 +32831,16 @@
 					PercentDiff = 0;
 					LastSample = -1;
 					TotalPauses = 0;
+					DecayPerc = 0.1;
+					BlueLine = 0;
+					DecayLandBeforeTick = 0;
+					ClaimedLandThisTick = 0;
 					PercAcc = DecayPerc * defaultPerc;
 					PercClaim = DecayPerc;
 					DecayPercAcc = PercAcc;
 					DecayPercClaim = PercClaim;
+					LandTickHistory = [];
+					LandTickHistorySum = 0;
 					ClaimedPixels = new Uint8Array(0);
 					PreviouslyClaimedLand = 0;
 					LogArray = []
@@ -32669,7 +32919,7 @@
 					let f88 = bd.mf;
 					this.a0I.aa2++;
 					if (DecayPercClaim !== 0) {
-						var decayFactor = DecayPerc / DecayPercClaim;
+						var decayFactor = (DecayPerc / DecayPercMulti) / DecayPercClaim;
 						DecayPercAcc *= decayFactor;
 						DecayPercClaim *= decayFactor;
 					}
